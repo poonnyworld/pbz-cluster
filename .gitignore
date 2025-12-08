@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+
+# Environment variables (สำคัญมาก ห้ามหลุด)
+.env
+
+# Database (เราจะสร้างใหม่ตอน Deploy)
+prisma/*.db
+prisma/*.db-journal
+prisma/*.log
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS files
+.DS_Store
+Thumbs.db

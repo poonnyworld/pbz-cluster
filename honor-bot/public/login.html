@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gate of the Order - Login</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Noto+Sans:wght@400;700&display=swap');
+
+        body {
+            margin: 0;
+            height: 100vh;
+            background: #0a0a0a;
+            background-image: radial-gradient(circle at 50% 50%, #1a0505 0%, #000000 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Noto Sans', sans-serif;
+            color: #fff;
+            overflow: hidden;
+        }
+
+        /* Anime Style Particles (Optional background effect) */
+        .bg-effect {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: url('https://www.transparenttextures.com/patterns/carbon-fibre.png');
+            opacity: 0.1;
+            z-index: 0;
+        }
+
+        .login-card {
+            background: rgba(20, 20, 20, 0.8);
+            backdrop-filter: blur(10px);
+            padding: 40px;
+            border-radius: 4px;
+            border: 1px solid #333;
+            border-left: 5px solid #ff4d4d;
+            box-shadow: 0 0 30px rgba(255, 77, 77, 0.1);
+            width: 350px;
+            z-index: 1;
+            transform: skew(-2deg);
+            /* เอียงนิดๆ สไตล์อนิเมะ */
+        }
+
+        h1 {
+            font-family: 'Cinzel', serif;
+            color: #ff4d4d;
+            text-align: center;
+            margin-bottom: 30px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 0 0 10px rgba(255, 77, 77, 0.5);
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            font-size: 0.8em;
+            color: #888;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            background: #000;
+            border: 1px solid #333;
+            color: #fff;
+            font-family: 'Noto Sans', sans-serif;
+            transition: 0.3s;
+            box-sizing: border-box;
+            /* สำคัญ */
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #ff4d4d;
+            box-shadow: 0 0 10px rgba(255, 77, 77, 0.2);
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            background: #ff4d4d;
+            color: #fff;
+            border: none;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: 0.3s;
+            clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+        }
+
+        button:hover {
+            background: #fff;
+            color: #ff4d4d;
+            box-shadow: 0 0 20px #ff4d4d;
+        }
+
+        .toggle-text {
+            text-align: center;
+            margin-top: 15px;
+            font-size: 0.8em;
+            color: #666;
+            cursor: pointer;
+        }
+
+        .toggle-text:hover {
+            color: #ff4d4d;
+        }
+
+        .error-msg {
+            color: #ff4d4d;
+            font-size: 0.8em;
+            text-align: center;
+            margin-bottom: 10px;
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="bg-effect"></div>
+
+    <div class="login-card">
+        <h1 id="title">Admin Access</h1>
+        <div id="errorMsg" class="error-msg">Invalid Credentials</div>
+
+        <div class="input-group">
+            <label>Username</label>
+            <input type="text" id="username">
+        </div>
+        <div class="input-group">
+            <label>Password</label>
+            <input type="password" id="password" onkeypress="handleEnter(event)">
+        </div>
+
+        <button onclick="handleAuth()" id="authBtn">Login</button>
+
+    </div>
+
+    <script>
+        // เพิ่มฟังก์ชัน: กด Enter แล้ว Login ได้เลย (UX ที่ดี)
+        function handleEnter(e) {
+            if (e.key === 'Enter') handleAuth();
+        }
+
+        async function handleAuth() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            try {
+                // ยิงไปที่ /api/login อย่างเดียว ไม่ต้องเช็ค isLogin แล้ว
+                const res = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+
+                const data = await res.json();
+
+                if (res.ok) {
+                    window.location.href = '/';
+                } else {
+                    const err = document.getElementById('errorMsg');
+                    err.style.display = 'block';
+                    err.innerText = "Access Denied"; // ข้อความเรียบๆ ดูปลอดภัย
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+    </script>
+
+</body>
+
+</html>

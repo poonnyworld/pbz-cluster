@@ -1,0 +1,115 @@
+// file: prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ==========================================
+// 🛡️ ส่วนของ User & Honor
+// ==========================================
+
+model User {
+  id            String   @id
+  username      String?
+  souls         Int      @default(0)
+  lastDaily     DateTime?
+  
+  flipCount     Int      @default(0)
+  lastFlipReset DateTime @default(now())
+  
+  inventory     InventoryItem[]
+  
+  // ✅ แก้ relation ให้ชี้ไปหา UserAnswer แทน QuizAttempt
+  answers       UserAnswer[]
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ✅ เปลี่ยนชื่อ ShopItem เป็น Item ให้ตรงกับโค้ด JS (ที่เราเขียนว่า prisma.item)
+model Item {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?
+  cost        Int      // แก้ price เป็น cost ให้ตรงกับโค้ด JS
+  stock       Int      @default(-1)
+  isActive    Boolean  @default(true)
+  
+  owners      InventoryItem[]
+}
+
+model InventoryItem {
+  id          Int      @id @default(autoincrement())
+  user        User     @relation(fields: [userId], references: [id])
+  userId      String
+  item        Item     @relation(fields: [itemId], references: [id])
+  itemId      Int
+  purchasedAt DateTime @default(now())
+}
+
+// ==========================================
+// 🎉 ส่วนของ Quiz & Event Bot
+// ==========================================
+
+model QuizSet {
+  id             Int            @id @default(autoincrement())
+  title          String
+  description    String?
+  status         String         @default("DRAFT") 
+
+  // ✅ เพิ่ม: เก็บ ID ของ Role ที่จะแจก (ใส่เป็น String เพราะ Discord ID ยาว)
+  completionRoleId String?
+  
+  panelMessageId String?
+  panelChannelId String?
+  questions      QuizQuestion[]
+  createdAt      DateTime       @default(now())
+}
+
+model QuizQuestion {
+  id           Int           @id @default(autoincrement())
+  setId        Int?
+  set          QuizSet?      @relation(fields: [setId], references: [id])
+  order        Int           @default(0)
+  question     String
+  answers      String        
+  rewardPoints Int           @default(100)
+  isActive     Boolean       @default(true)
+  
+  // ✅ Relation ถูกต้อง: ชี้ไปหา UserAnswer
+  userAnswers  UserAnswer[]  
+  
+  createdAt    DateTime      @default(now())
+}
+
+// ✅ ตารางเก็บคำตอบ (รวม Attempt + Answer ไว้ที่เดียว)
+model UserAnswer {
+  id         Int          @id @default(autoincrement())
+  
+  userId     String
+  user       User         @relation(fields: [userId], references: [id])
+  
+  questionId Int
+  question   QuizQuestion @relation(fields: [questionId], references: [id])
+  
+  answer     String       // คำตอบที่ user พิมพ์
+  isCorrect  Boolean      @default(false)
+  answeredAt DateTime     @default(now())
+
+  @@unique([userId, questionId])
+}
+
+// ==========================================
+// ⚙️ System Config
+// ==========================================
+model SystemConfig {
+  key       String   @id
+  value     Boolean  @default(false)
+  updatedAt DateTime @updatedAt
+}

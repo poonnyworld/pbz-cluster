@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phantom Command</title>
+    <style>
+        /* (ใช้ CSS เดิมได้เลยครับ) */
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700&family=Noto+Sans:wght@400;700&display=swap');
+
+        :root {
+            --primary: #ff3333;
+            --success: #4caf50;
+            --dark-bg: #0f0f0f;
+            --card-bg: rgba(30, 30, 30, 0.85);
+            --text-main: #e0e0e0;
+        }
+
+        body {
+            font-family: 'Noto Sans', sans-serif;
+            background: var(--dark-bg);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+        }
+
+        #toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .toast {
+            background: #333;
+            color: white;
+            padding: 15px 25px;
+            border-radius: 4px;
+            border-left: 5px solid var(--primary);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: slideIn 0.3s ease-out forwards;
+        }
+
+        .toast.success {
+            border-left-color: var(--success);
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes fadeOut {
+            from {
+                opacity: 1;
+            }
+
+            to {
+                opacity: 0;
+            }
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            display: grid;
+            gap: 30px;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid var(--primary);
+            padding-bottom: 20px;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            font-family: 'Cinzel', serif;
+            color: #fff;
+            margin: 0;
+            text-shadow: 0 0 10px var(--primary);
+            font-size: 2.5rem;
+        }
+
+        .logout-btn {
+            background: transparent;
+            border: 1px solid var(--primary);
+            color: var(--primary);
+            padding: 8px 20px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .section {
+            background: var(--card-bg);
+            padding: 25px;
+            border-radius: 4px;
+            border-left: 4px solid var(--primary);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        td,
+        th {
+            padding: 10px;
+            border-bottom: 1px solid #333;
+            text-align: left;
+        }
+
+        .badge {
+            background: rgba(255, 51, 51, 0.15);
+            color: var(--primary);
+            border: 1px solid var(--primary);
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        input,
+        select {
+            padding: 10px;
+            width: 100%;
+            box-sizing: border-box;
+            background: #222;
+            border: 1px solid #444;
+            color: white;
+            margin-bottom: 10px;
+        }
+
+        .btn-add {
+            background: var(--primary);
+            border: none;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            width: 100%;
+            padding: 10px;
+        }
+
+        .btn-icon {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 1.1em;
+            color: #aaa;
+            transition: 0.2s;
+        }
+
+        .btn-icon:hover {
+            color: white;
+            transform: scale(1.1);
+        }
+
+        .status-badge {
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.75em;
+            border: 1px solid #555;
+            margin-left: 8px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+        }
+
+        .modal-content {
+            background: #1a1a1a;
+            margin: 10% auto;
+            padding: 30px;
+            border: 1px solid var(--primary);
+            width: 400px;
+            position: relative;
+        }
+
+        .close {
+            float: right;
+            font-size: 28px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="toast-container"></div>
+    <div class="container">
+        <header>
+            <h1>🗡️ Phantom Command</h1>
+            <div>
+                <button class="logout-btn" style="margin-right:10px; border-color:#4caf50; color:#4caf50;"
+                    onclick="location.href='/api/download-db'">⬇️ BACKUP</button>
+                <button class="logout-btn" onclick="logout()">LOGOUT</button>
+            </div>
+        </header>
+
+        <div class="grid-2">
+            <div>
+                <div class="section">
+                    <h2>⚙️ Config</h2>
+                    <div style="display:flex; justify-content:space-between; padding:5px;"><label>Shop</label><input
+                            type="checkbox" id="toggle_shop" onchange="toggleConfig('shop_enabled',this.checked)"
+                            style="width:auto;"></div>
+                    <div style="display:flex; justify-content:space-between; padding:5px;"><label>Redeem</label><input
+                            type="checkbox" id="toggle_redeem" onchange="toggleConfig('redeem_enabled',this.checked)"
+                            style="width:auto;"></div>
+                </div>
+                <div class="section">
+                    <h2>🏆 Warriors</h2>
+                    <div style="height:300px; overflow-y:auto;">
+                        <table id="userTable">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Honor</th>
+                                    <th>Edit</th>
+                                </tr>
+                            </thead>
+                            <tbody id="userBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="section">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <h2>📚 Quiz Sets</h2>
+                    <button class="btn-add" style="width:auto;" onclick="openModal('createSetModal')">+ New</button>
+                </div>
+                <div id="quizSetsContainer" style="margin-top:20px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="createSetModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('createSetModal')">&times;</span>
+            <h3>Create Quiz Set</h3>
+            <input type="text" id="newSetTitle" placeholder="Title">
+            <input type="text" id="newSetDesc" placeholder="Description">
+            <input type="text" id="newSetRoleId" placeholder="Reward Role ID (Optional)">
+            <button class="btn-add" onclick="createSet()">Create</button>
+        </div>
+    </div>
+
+    <div id="editSetModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('editSetModal')">&times;</span>
+            <h3>Edit Quiz Set</h3>
+            <input type="hidden" id="editSetId">
+            <label>Title</label><input type="text" id="editSetTitle">
+            <label>Description</label><input type="text" id="editSetDesc">
+            <label>Role ID</label><input type="text" id="editSetRoleId">
+            <button class="btn-add" onclick="saveSet()">Save</button>
+        </div>
+    </div>
+
+    <div id="editQModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('editQModal')">&times;</span>
+            <h3>Edit Question</h3>
+            <input type="hidden" id="editQId">
+            <div style="display:flex;gap:10px;"><input type="number" id="editQOrder" placeholder="Order"><input
+                    type="number" id="editQReward" placeholder="Reward"></div>
+            <input type="text" id="editQText" placeholder="Question">
+            <input type="text" id="editQAns" placeholder="Answers (a,b)">
+            <button class="btn-add" onclick="saveQuestion()">Save</button>
+        </div>
+    </div>
+
+    <div id="userModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('userModal')">&times;</span>
+            <h3>Edit User</h3>
+            <input type="hidden" id="editUserId">
+            <p id="editUserName"></p>
+            <input type="number" id="editUserSouls">
+            <button class="btn-add" onclick="saveUser()">Save</button>
+        </div>
+    </div>
+
+    <script>
+        function showToast(m, ok = true) { const c = document.getElementById('toast-container'); const t = document.createElement('div'); t.className = `toast ${ok ? 'success' : 'error'}`; t.innerHTML = `<span>${ok ? '✅' : '❌'}</span> <span>${m}</span>`; c.appendChild(t); setTimeout(() => { t.remove() }, 3000); }
+        function logout() { fetch('/api/logout', { method: 'POST' }).then(() => window.location.href = '/login.html') }
+        fetch('/api/check-auth').then(r => r.json()).then(d => { if (!d.loggedIn) window.location.href = '/login.html' });
+
+        let allSets = [];
+
+        // --- USERS ---
+        async function fetchUsers() {
+            const r = await fetch('/api/users'); const u = await r.json();
+            document.getElementById('userBody').innerHTML = u.map(x => `<tr><td>${x.username}</td><td><span class="badge">${x.souls}</span></td><td><button class="btn-icon" onclick="openUserModal('${x.id}','${x.username}',${x.souls})">✏️</button></td></tr>`).join('');
+        }
+        function openUserModal(id, n, s) { document.getElementById('userModal').style.display = 'block'; document.getElementById('editUserId').value = id; document.getElementById('editUserName').innerText = n; document.getElementById('editUserSouls').value = s; }
+        async function saveUser() {
+            await fetch(`/api/users/${document.getElementById('editUserId').value}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ souls: document.getElementById('editUserSouls').value }) });
+            closeModal('userModal'); fetchUsers(); showToast("Saved");
+        }
+
+        // --- CONFIG ---
+        async function fetchConfig() {
+            const r = await fetch('/api/config'); const c = await r.json();
+            document.getElementById('toggle_shop').checked = c['shop_enabled']; document.getElementById('toggle_redeem').checked = c['redeem_enabled'];
+        }
+        async function toggleConfig(k, v) { await fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: k, value: v }) }); showToast("Saved"); }
+
+        // --- QUIZ SETS ---
+        async function fetchSets() {
+            const r = await fetch('/api/quiz-sets'); if (r.ok) { allSets = await r.json(); renderSets(); }
+        }
+        function renderSets() {
+            const c = document.getElementById('quizSetsContainer'); c.innerHTML = '';
+            allSets.forEach(s => {
+                const qs = s.questions.sort((a, b) => a.order - b.order);
+                const qHtml = qs.map(q => {
+                    let ans = ''; try { ans = JSON.parse(q.answers).join(', '); } catch (e) { ans = q.answers }
+                    return `<div style="background:rgba(0,0,0,0.3);padding:10px;margin:5px 0;display:flex;justify-content:space-between;align-items:center;">
+                        <div style="flex:1;"><b>#${q.order}</b> ${q.question}<br><small style="color:#aaa">Ans: ${ans} | ${q.rewardPoints}pts</small></div>
+                        <div><button class="btn-icon" onclick="openEditQ(${q.id},${s.id})">✏️</button><button class="btn-icon" onclick="delQ(${q.id})">🗑️</button></div>
+                    </div>`;
+                }).join('');
+                c.innerHTML += `
+                <div style="background:rgba(255,255,255,0.05);padding:15px;margin-bottom:15px;border-radius:4px;">
+                    <div style="display:flex;justify-content:space-between;border-bottom:1px solid #444;padding-bottom:10px;margin-bottom:10px;">
+                        <div><h3 style="margin:0;display:inline;">${s.title}</h3><span class="status-badge status-${s.status}">${s.status}</span><div style="color:#888;font-size:0.9em;">${s.description || ''}</div></div>
+                        <div><button class="btn-icon" onclick="openEditSet(${s.id})">📝</button><button class="btn-icon" onclick="delSet(${s.id})">🗑️</button></div>
+                    </div>
+                    <div style="background:rgba(0,0,0,0.2);padding:10px;border-radius:4px;display:flex;gap:5px;">
+                        <input id="q_o_${s.id}" type="number" placeholder="#" value="${qs.length + 1}" style="width:50px;margin:0;"><input id="q_t_${s.id}" placeholder="Question" style="flex:2;margin:0;"><input id="q_a_${s.id}" placeholder="Ans" style="flex:1;margin:0;"><input id="q_r_${s.id}" type="number" value="100" style="width:60px;margin:0;"><button class="btn-add" style="width:auto;padding:0 15px;" onclick="addQ(${s.id})">+</button>
+                    </div>
+                    <div style="margin-top:10px;">${qHtml}</div>
+                </div>`;
+            });
+        }
+
+        // --- ACTIONS ---
+        async function createSet() {
+            const t = document.getElementById('newSetTitle').value; const d = document.getElementById('newSetDesc').value; const r = document.getElementById('newSetRoleId').value;
+            const res = await fetch('/api/quiz-sets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: t, description: d, completionRoleId: r }) });
+            if (res.ok) { showToast("Created"); closeModal('createSetModal'); fetchSets(); } else showToast("Failed", false);
+        }
+        function openEditSet(id) {
+            const s = allSets.find(x => x.id === id); document.getElementById('editSetId').value = id; document.getElementById('editSetTitle').value = s.title; document.getElementById('editSetDesc').value = s.description; document.getElementById('editSetRoleId').value = s.completionRoleId || ''; openModal('editSetModal');
+        }
+        async function saveSet() {
+            const id = document.getElementById('editSetId').value;
+            await fetch(`/api/quiz-sets/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: document.getElementById('editSetTitle').value, description: document.getElementById('editSetDesc').value, completionRoleId: document.getElementById('editSetRoleId').value }) });
+            closeModal('editSetModal'); fetchSets(); showToast("Updated");
+        }
+        async function delSet(id) { if (confirm("Delete?")) { await fetch(`/api/quiz-sets/${id}`, { method: 'DELETE' }); fetchSets(); showToast("Deleted"); } }
+
+        async function addQ(sid) {
+            const q = document.getElementById(`q_t_${sid}`).value; const a = document.getElementById(`q_a_${sid}`).value;
+            if (!q || !a) return showToast("Missing info", false);
+            await fetch('/api/quizzes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ setId: sid, question: q, answers: a, rewardPoints: document.getElementById(`q_r_${sid}`).value, order: document.getElementById(`q_o_${sid}`).value }) });
+            fetchSets(); showToast("Added");
+        }
+        function openEditQ(qid, sid) {
+            const q = allSets.find(x => x.id === sid).questions.find(x => x.id === qid);
+            document.getElementById('editQId').value = qid; document.getElementById('editQOrder').value = q.order; document.getElementById('editQText').value = q.question;
+            try { document.getElementById('editQAns').value = JSON.parse(q.answers).join(', '); } catch (e) { document.getElementById('editQAns').value = q.answers }
+            document.getElementById('editQReward').value = q.rewardPoints; openModal('editQModal');
+        }
+        async function saveQuestion() {
+            await fetch(`/api/quizzes/${document.getElementById('editQId').value}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: document.getElementById('editQText').value, answers: document.getElementById('editQAns').value, rewardPoints: document.getElementById('editQReward').value, order: document.getElementById('editQOrder').value }) });
+            closeModal('editQModal'); fetchSets(); showToast("Updated");
+        }
+        async function delQ(id) { if (confirm("Delete?")) { await fetch(`/api/quizzes/${id}`, { method: 'DELETE' }); fetchSets(); showToast("Deleted"); } }
+
+        function openModal(id) { document.getElementById(id).style.display = 'block' }
+        function closeModal(id) { document.getElementById(id).style.display = 'none' }
+        window.onclick = function (e) { if (e.target.classList.contains('modal')) e.target.style.display = "none" }
+
+        fetchConfig(); fetchUsers(); fetchSets();
+    </script>
+</body>
+
+</html>

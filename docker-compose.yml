@@ -1,0 +1,52 @@
+services:
+  # -------------------------
+  # 1. 🎮 Honor Bot
+  # -------------------------
+  honor-bot:
+    container_name: pbz-honor
+    build: ./honor-bot
+    restart: always
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./prisma:/app/prisma
+    env_file: .env
+
+  # -------------------------
+  # 2. 🎮 Quiz Bot
+  # -------------------------
+  quiz-bot:
+    container_name: pbz-quiz
+    build: ./quiz-bot
+    restart: on-failure
+    volumes:
+      - ./prisma:/app/prisma
+    env_file: .env
+    # profiles: ["exclude"]  <-- ลบ หรือ comment บรรทัดนี้ทิ้ง
+
+  # -------------------------
+  # 3. 🎮 Game Center (รวมทุกเกม: Bingo, Slots, etc.)
+  # -------------------------
+  # game-center-bot:
+    # container_name: pbz-game-center
+    # build: ./game-center-bot  # ชี้ไปที่โฟลเดอร์ใหม่
+    # restart: on-failure
+    # volumes:
+    #   - ./prisma:/app/prisma  # ใช้ DB เดียวกัน
+    # env_file: .env
+
+  # -------------------------
+  # 🗄️ Prisma Studio (Database GUI)
+  # -------------------------
+  studio:
+    container_name: pbz-studio
+    # ใช้ Image เดียวกับ honor-bot เพราะมีตัว Prisma ติดตั้งไว้อยู่แล้ว ไม่ต้องโหลดใหม่
+    build: ./honor-bot
+    ports:
+      - "5555:5555"
+    volumes:
+      # 🔗 สำคัญ: ต้อง mount โฟลเดอร์เดียวกับบอท เพื่อให้เห็นไฟล์ dev.db ตัวเดียวกัน
+      - ./prisma:/app/prisma
+    env_file: .env
+    # สั่งให้รัน Studio แทนที่จะรันบอท (ต้องระบุ Host 0.0.0.0 เพื่อให้เข้าจาก Windows ได้)
+    command: npx prisma studio --schema=/app/prisma/schema.prisma --hostname 0.0.0.0 --port 5555
