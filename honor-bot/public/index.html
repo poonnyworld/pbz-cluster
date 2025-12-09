@@ -6,7 +6,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Phantom Command</title>
     <style>
-        /* (ใช้ CSS เดิมได้เลยครับ) */
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700&family=Noto+Sans:wght@400;700&display=swap');
 
         :root {
@@ -61,16 +60,6 @@
             to {
                 transform: translateX(0);
                 opacity: 1;
-            }
-        }
-
-        @keyframes fadeOut {
-            from {
-                opacity: 1;
-            }
-
-            to {
-                opacity: 0;
             }
         }
 
@@ -267,13 +256,11 @@
             <h3>Create Quiz Set</h3>
             <input type="text" id="newSetTitle" placeholder="Title">
             <input type="text" id="newSetDesc" placeholder="Description">
-
             <label style="display:block; margin-top:10px; color:#aaa;">Quiz Type:</label>
             <select id="newSetType" style="margin-bottom:15px;">
                 <option value="BINGO" selected>🎯 Bingo Prediction (Yes/No)</option>
                 <option value="STANDARD">📝 Standard Quiz (Text Input)</option>
             </select>
-
             <input type="text" id="newSetRoleId" placeholder="Reward Role ID (Optional)">
             <button class="btn-add" onclick="createSet()">Create</button>
         </div>
@@ -356,6 +343,8 @@
         async function fetchSets() {
             const r = await fetch('/api/quiz-sets'); if (r.ok) { allSets = await r.json(); renderSets(); }
         }
+
+        // ✅ แก้ไข function นี้: เปลี่ยน Input เป็น Select
         function renderSets() {
             const c = document.getElementById('quizSetsContainer'); c.innerHTML = '';
             allSets.forEach(s => {
@@ -367,22 +356,25 @@
                         <div><button class="btn-icon" onclick="openEditQ(${q.id},${s.id})">✏️</button><button class="btn-icon" onclick="delQ(${q.id})">🗑️</button></div>
                     </div>`;
                 }).join('');
+
+                // --- ส่วน Add Question แถวนี้แหละที่แก้ ---
                 c.innerHTML += `
                 <div style="background:rgba(255,255,255,0.05);padding:15px;margin-bottom:15px;border-radius:4px;">
                     <div style="display:flex;justify-content:space-between;border-bottom:1px solid #444;padding-bottom:10px;margin-bottom:10px;">
-                        <div>
-                            <h3 style="margin:0;display:inline;">${s.title}</h3>
-                            <span class="status-badge status-${s.status}">${s.status}</span>
-                            <span style="background:${s.type === 'BINGO' ? '#9b59b6' : '#34495e'};padding:2px 6px;border-radius:3px;font-size:0.75em;margin-left:5px;">${s.type}</span>
-                            <div style="color:#888;font-size:0.9em;">${s.description || ''}</div>
-                        </div>
+                        <div><h3 style="margin:0;display:inline;">${s.title}</h3><span class="status-badge status-${s.status}">${s.status}</span><span style="background:${s.type === 'BINGO' ? '#9b59b6' : '#34495e'};padding:2px 6px;border-radius:3px;font-size:0.75em;margin-left:5px;">${s.type}</span><div style="color:#888;font-size:0.9em;">${s.description || ''}</div></div>
                         <div><button class="btn-icon" onclick="openEditSet(${s.id})">📝</button><button class="btn-icon" onclick="delSet(${s.id})">🗑️</button></div>
                     </div>
                     <div style="background:rgba(0,0,0,0.2);padding:10px;border-radius:4px;display:flex;gap:5px;">
+                        <input id="q_o_${s.id}" type="number" placeholder="#" value="${qs.length + 1}" style="width:50px;margin:0;">
+                        <input id="q_t_${s.id}" placeholder="New Question" style="flex:2;margin:0;">
+                        
                         <select id="q_a_${s.id}" style="flex:1;margin:0;padding:10px;background:#222;border:1px solid #444;color:white;">
-    <option value="Yes">Yes</option>
-    <option value="No">No</option>
-</select>
+                            <option value="Yes">Yes</option>
+                            <option value="No">No</option>
+                        </select>
+
+                        <input id="q_r_${s.id}" type="number" value="100" style="width:60px;margin:0;">
+                        <button class="btn-add" style="width:auto;padding:0 15px;" onclick="addQ(${s.id})">+</button>
                     </div>
                     <div style="margin-top:10px;">${qHtml}</div>
                 </div>`;
@@ -390,17 +382,9 @@
         }
 
         // --- ACTIONS ---
-        // หาฟังก์ชัน createSet แล้วแก้บรรทัดที่ส่ง fetch
         async function createSet() {
-            const t = document.getElementById('newSetTitle').value;
-            const d = document.getElementById('newSetDesc').value;
-            const r = document.getElementById('newSetRoleId').value;
-            // ✅ รับค่า Type
-            const type = document.getElementById('newSetType').value;
-
-            // ✅ ส่ง type ไปใน body
+            const t = document.getElementById('newSetTitle').value; const d = document.getElementById('newSetDesc').value; const r = document.getElementById('newSetRoleId').value; const type = document.getElementById('newSetType').value;
             const res = await fetch('/api/quiz-sets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: t, description: d, completionRoleId: r, type: type }) });
-
             if (res.ok) { showToast("Created"); closeModal('createSetModal'); fetchSets(); } else showToast("Failed", false);
         }
         function openEditSet(id) {
@@ -413,6 +397,7 @@
         }
         async function delSet(id) { if (confirm("Delete?")) { await fetch(`/api/quiz-sets/${id}`, { method: 'DELETE' }); fetchSets(); showToast("Deleted"); } }
 
+        // function addQ ไม่ต้องแก้ logic เพราะดึง .value จาก ID ซึ่ง select ก็มี .value เหมือนกัน
         async function addQ(sid) {
             const q = document.getElementById(`q_t_${sid}`).value; const a = document.getElementById(`q_a_${sid}`).value;
             if (!q || !a) return showToast("Missing info", false);
@@ -420,62 +405,18 @@
             fetchSets(); showToast("Added");
         }
         function openEditQ(qid, sid) {
-            // 1. หาข้อมูล Set และ Question
-            const s = allSets.find(x => x.id === sid);
-            const q = s.questions.find(x => x.id === qid);
-
-            // 2. เติมข้อมูลลงฟอร์ม
-            document.getElementById('editQId').value = q.id;
-            document.getElementById('editQOrder').value = q.order;
-            document.getElementById('editQText').value = q.question;
-            document.getElementById('editQReward').value = q.rewardPoints;
-
-            // 3. ✅ จัดการเรื่องคำตอบ (แปลงจาก JSON เป็นค่า Yes/No)
-            let currentAns = 'Yes'; // ค่า Default
-            try {
-                // ข้อมูลใน DB อาจเป็น ["Yes"] หรือ "Yes"
-                const parsed = JSON.parse(q.answers);
-                if (Array.isArray(parsed) && parsed.length > 0) {
-                    currentAns = parsed[0]; // เอาตัวแรก
-                } else {
-                    currentAns = q.answers;
-                }
-            } catch (e) {
-                currentAns = q.answers;
-            }
-
-            // จัด Format ให้ตัวแรกพิมพ์ใหญ่ (Yes/No) เพื่อให้ตรงกับ value ใน option
+            const s = allSets.find(x => x.id === sid); const q = s.questions.find(x => x.id === qid);
+            document.getElementById('editQId').value = qid; document.getElementById('editQOrder').value = q.order; document.getElementById('editQText').value = q.question; document.getElementById('editQReward').value = q.rewardPoints;
+            let currentAns = 'Yes'; try { const p = JSON.parse(q.answers); if (Array.isArray(p) && p.length > 0) currentAns = p[0]; else currentAns = q.answers; } catch (e) { currentAns = q.answers; }
             currentAns = currentAns.charAt(0).toUpperCase() + currentAns.slice(1).toLowerCase();
-
-            // เซ็ตค่าให้ Dropdown
-            const dropdown = document.getElementById('editQAns');
-            if (currentAns === 'No') dropdown.value = 'No';
-            else dropdown.value = 'Yes';
-
+            const dd = document.getElementById('editQAns'); if (currentAns === 'No') dd.value = 'No'; else dd.value = 'Yes';
             openModal('editQModal');
         }
         async function saveQuestion() {
-            // 1. ดึง ID ออกมา
             const id = document.getElementById('editQId').value;
-
-            // 2. สร้าง Object ข้อมูลที่จะส่ง
-            const body = {
-                order: document.getElementById('editQOrder').value,
-                question: document.getElementById('editQText').value,
-                answers: document.getElementById('editQAns').value, // ✅ ดึงค่า Yes/No จาก Dropdown ได้เลย
-                rewardPoints: document.getElementById('editQReward').value
-            };
-
-            // 3. ส่งข้อมูล (ใช้ตัวแปร body ที่สร้างไว้ด้านบน)
-            await fetch(`/api/quizzes/${id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body) // 👈 แก้ตรงนี้: ใช้ตัวแปร body แทนการพิมพ์ใหม่
-            });
-
-            closeModal('editQModal');
-            fetchSets();
-            showToast("Updated");
+            const body = { order: document.getElementById('editQOrder').value, question: document.getElementById('editQText').value, answers: document.getElementById('editQAns').value, rewardPoints: document.getElementById('editQReward').value };
+            await fetch(`/api/quizzes/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+            closeModal('editQModal'); fetchSets(); showToast("Updated");
         }
         async function delQ(id) { if (confirm("Delete?")) { await fetch(`/api/quizzes/${id}`, { method: 'DELETE' }); fetchSets(); showToast("Deleted"); } }
 
