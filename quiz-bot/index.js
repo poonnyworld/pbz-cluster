@@ -33,12 +33,10 @@ async function sendLog(title, description, color = 0x0099FF, channelId = LOG_CHA
     } catch (e) { console.error(`Log Error (${channelId}):`, e.message); }
 }
 
-// ✅ [NEW] Helper: ตัดคำให้พอดีความกว้าง (Word Wrap)
+// ✅ [NEW] Helper: Word Wrap
 function wordWrap(str, maxWidth) {
     const res = [];
     let currentLine = "";
-
-    // ถ้าคำยาวมากๆ ให้ตัดเลย (Character wrap) เพื่อความง่ายในตาราง
     for (let i = 0; i < str.length; i++) {
         currentLine += str[i];
         if (currentLine.length >= maxWidth) {
@@ -50,67 +48,67 @@ function wordWrap(str, maxWidth) {
     return res;
 }
 
-// ✅ [UPDATE] ตาราง Bingo แบบปัดบรรทัด (Multi-line Grid)
+// ✅ [UPDATE] Generate Bingo Grid (Multi-line)
 function generateBingoGrid(answersList) {
     const sorted = answersList.sort((a, b) => a.order - b.order);
-    const colWidth = 14; // ความกว้างต่อช่อง
+    const colWidth = 14;
 
     let table = "```\n";
     table += "+--------------+--------------+--------------+\n";
 
-    // Loop ทีละ 3 ข้อ (1 แถวของ Bingo)
     for (let i = 0; i < sorted.length; i += 3) {
-        const rowItems = [sorted[i], sorted[i + 1], sorted[i + 2]]; // ดึงข้อมูล 3 ช่อง
+        const rowItems = [sorted[i], sorted[i + 1], sorted[i + 2]];
 
-        // 1. เตรียมข้อมูลข้อความของแต่ละช่อง (แบ่งเป็นบรรทัดๆ)
         const cellLines = rowItems.map(item => {
-            if (!item) return []; // เผื่อแถวสุดท้ายไม่ครบ 3
-
-            // Header: "Q1: YES" หรือ "Q1: Text..."
+            if (!item) return [];
             let header = `Q${item.order}:`;
             let answerText = item.answer;
-
-            // แปลง Yes/No ให้สั้นลง
             if (answerText.toLowerCase() === 'yes') answerText = 'YES';
             else if (answerText.toLowerCase() === 'no') answerText = 'NO';
-
             const fullText = `${header} ${answerText}`;
-            return wordWrap(fullText, colWidth); // ตัดคำเป็น array ของบรรทัด
+            return wordWrap(fullText, colWidth);
         });
 
-        // 2. หาความสูงสูงสุดของแถวนี้ (ดูว่าช่องไหนกินบรรทัดเยอะสุด)
         const maxHeight = Math.max(
             cellLines[0] ? cellLines[0].length : 0,
             cellLines[1] ? cellLines[1].length : 0,
             cellLines[2] ? cellLines[2].length : 0
         );
 
-        // 3. ปริ้นท์ทีละบรรทัด
         for (let line = 0; line < maxHeight; line++) {
             let lineStr = "|";
-            for (let cell = 0; cell < 3; cell++) { // 3 คอลัมน์
+            for (let cell = 0; cell < 3; cell++) {
                 let text = "";
                 if (cellLines[cell] && cellLines[cell][line]) {
                     text = cellLines[cell][line];
                 }
-                // เติมช่องว่างให้เต็มความกว้าง
-                lineStr += ` ${text.padEnd(colWidth - 2)} |`; // -2 เผื่อเว้นวรรคหน้าหลัง
+                lineStr += ` ${text.padEnd(colWidth - 2)} |`;
             }
             table += lineStr + "\n";
         }
-
-        // จบแถว ขีดเส้นใต้
         table += "+--------------+--------------+--------------+\n";
     }
-
     table += "```";
     return table;
 }
 
 // --- COMMANDS ---
 const commands = [
-    new SlashCommandBuilder().setName('quiz-panel').setDescription('ADMIN: สร้างป้ายกิจกรรม Quiz').addIntegerOption(opt => opt.setName('set_id').setDescription('ID').setRequired(true)).setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
-    new SlashCommandBuilder().setName('quiz-status').setDescription('ADMIN: เปลี่ยนสถานะ').addIntegerOption(opt => opt.setName('set_id').setDescription('ID').setRequired(true)).addStringOption(opt => opt.setName('status').setDescription('Status').setRequired(true).addChoices({ name: 'OPEN', value: 'OPEN' }, { name: 'CLOSED', value: 'CLOSED' }, { name: 'REVEALED', value: 'REVEALED' })).setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    new SlashCommandBuilder()
+        .setName('quiz-panel')
+        .setDescription('ADMIN: Create Quiz Panel')
+        .addIntegerOption(opt => opt.setName('set_id').setDescription('Set ID').setRequired(true))
+        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+    new SlashCommandBuilder()
+        .setName('quiz-status')
+        .setDescription('ADMIN: Change Status')
+        .addIntegerOption(opt => opt.setName('set_id').setDescription('Set ID').setRequired(true))
+        .addStringOption(opt => opt.setName('status').setDescription('Status').setRequired(true).addChoices(
+            { name: 'OPEN', value: 'OPEN' },
+            { name: 'CLOSED', value: 'CLOSED' },
+            { name: 'REVEALED', value: 'REVEALED' }
+        ))
+        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
 ];
 const rest = new REST({ version: '10' }).setToken(TOKEN);
 
@@ -123,22 +121,25 @@ async function createPanelPayload(setId) {
     const typeText = set.type === 'BINGO' ? '🎯 Bingo Prediction' : '📝 Standard Quiz';
 
     if (set.status === 'OPEN') {
-        embed.setColor(0xFFD700).setDescription(`**✨ กิจกรรมเริ่มแล้ว! (${typeText})**\nตอบคำถาม ${set.questions.length} ข้อ เพื่อสร้างใบทำนาย\n\n*กดปุ่มด้านล่างเพื่อเริ่ม (ถ้าเผลอปิด กดใหม่เพื่อทำต่อได้)*`).setFooter({ text: '🔴 คำเตือน: คิดให้ดีก่อนตอบ!' });
-        row.addComponents(new ButtonBuilder().setCustomId(`start_quiz_${setId}`).setLabel('✍️ เริ่มกิจกรรม / ทำต่อ').setStyle(ButtonStyle.Success));
+        embed.setColor(0xFFD700)
+            .setDescription(`**✨ Event Started! (${typeText})**\nAnswer ${set.questions.length} questions to create your prediction card.\n\n*Click below to start (Click again to resume if dismissed)*`)
+            .setFooter({ text: '🔴 Warning: Think carefully before answering!' });
+        row.addComponents(new ButtonBuilder().setCustomId(`start_quiz_${setId}`).setLabel('✍️ Start / Resume').setStyle(ButtonStyle.Success));
     } else if (set.status === 'CLOSED') {
-        embed.setColor(0xED4245).setDescription(`⛔ **ปิดรับคำตอบแล้ว**\nรอติดตามผลการทำนายได้เร็วๆ นี้!`);
-        row.addComponents(new ButtonBuilder().setCustomId(`disabled_1`).setLabel('⛔ ปิดรับคำตอบ').setStyle(ButtonStyle.Secondary).setDisabled(true));
+        embed.setColor(0xED4245)
+            .setDescription(`⛔ **Submissions Closed**\nStay tuned for the results soon!`);
+        row.addComponents(new ButtonBuilder().setCustomId(`disabled_1`).setLabel('⛔ Closed').setStyle(ButtonStyle.Secondary).setDisabled(true));
     } else if (set.status === 'REVEALED') {
         const answerKey = set.questions.map(q => {
             let ans = q.answers; try { ans = JSON.parse(q.answers)[0]; } catch (e) { }
-            return `**Q${q.order}.** ${q.question}\nเฉลย: **${ans}**`;
+            return `**Q${q.order}.** ${q.question}\nAnswer: **${ans}**`;
         }).join('\n\n');
-        let desc = `🎉 **เฉลยผลการทำนาย!**\n\n${answerKey}`;
-        if (set.completionRoleId) desc += `\n\n🏆 **Special Reward:** ผู้ที่ทายถูกครบทุกข้อจะได้รับยศ <@&${set.completionRoleId}>`;
+        let desc = `🎉 **Prediction Results!**\n\n${answerKey}`;
+        if (set.completionRoleId) desc += `\n\n🏆 **Special Reward:** Users who answer all correctly will receive role <@&${set.completionRoleId}>`;
         embed.setColor(0x57F287).setDescription(desc);
-        row.addComponents(new ButtonBuilder().setCustomId(`check_result_${setId}`).setLabel('🏆 ดูคะแนนของฉัน').setStyle(ButtonStyle.Primary));
+        row.addComponents(new ButtonBuilder().setCustomId(`check_result_${setId}`).setLabel('🏆 Check My Score').setStyle(ButtonStyle.Primary));
     } else {
-        embed.setColor(0x95A5A6).setDescription('⏳ กิจกรรมยังไม่พร้อม (Draft Mode)');
+        embed.setColor(0x95A5A6).setDescription('⏳ Event not ready (Draft Mode)');
     }
     return { embeds: [embed], components: row.components.length > 0 ? [row] : [] };
 }
@@ -153,15 +154,15 @@ client.on('interactionCreate', async interaction => {
     // 1. ADMIN COMMANDS
     if (interaction.isChatInputCommand()) {
         if (interaction.commandName === 'quiz-panel') {
-            await interaction.deferReply({ ephemeral: true }); // ✅ Fix: ใช้ Ephemeral ไม่ให้รก
+            await interaction.deferReply({ ephemeral: true });
             const setId = interaction.options.getInteger('set_id');
             const payload = await createPanelPayload(setId);
-            if (!payload) return interaction.editReply('❌ ไม่พบ ID นี้');
+            if (!payload) return interaction.editReply('❌ Set ID not found.');
 
             const msg = await interaction.channel.send(payload);
             await prisma.quizSet.update({ where: { id: setId }, data: { panelMessageId: msg.id, panelChannelId: msg.channel.id } });
 
-            await interaction.editReply('✅ สร้าง Panel สำเร็จ!');
+            await interaction.editReply('✅ Panel created successfully!');
             sendLog('📺 Panel Created', `Set ID: ${setId} in <#${msg.channel.id}>`, 0x9B59B6);
         }
         if (interaction.commandName === 'quiz-status') {
@@ -172,7 +173,7 @@ client.on('interactionCreate', async interaction => {
             if (status === 'OPEN') {
                 const checkSet = await prisma.quizSet.findUnique({ where: { id: setId }, include: { questions: true } });
                 if (checkSet.type === 'BINGO' && checkSet.questions.length !== 9) {
-                    return interaction.editReply(`❌ **Cannot Open:** Bingo Set ต้องมีคำถามครบ **9 ข้อ** (ปัจจุบัน: ${checkSet.questions.length})`);
+                    return interaction.editReply(`❌ **Cannot Open:** Bingo Set must have exactly **9 questions** (Current: ${checkSet.questions.length})`);
                 }
             }
 
@@ -188,14 +189,14 @@ client.on('interactionCreate', async interaction => {
 
             sendLog('🔄 Status Changed', `Set ID: ${setId} -> **${status}**`, 0xFFA500);
 
-            // --- REVEALED LOGIC (Updated Grading) ---
+            // --- REVEALED LOGIC ---
             if (status === 'REVEALED') {
                 const questions = await prisma.quizQuestion.findMany({ where: { setId } });
                 const answers = await prisma.userAnswer.findMany({ where: { question: { setId } }, include: { question: true } });
                 const userCorrectCount = {};
 
                 for (const ans of answers) {
-                    // 1. ✋ กรณี Manual Grading: ข้าม (เชื่อตามที่ Admin ตรวจไว้)
+                    // Manual Grading
                     if (ans.question.manualGrading) {
                         if (ans.isCorrect === true) {
                             if (!userCorrectCount[ans.userId]) userCorrectCount[ans.userId] = 0;
@@ -204,36 +205,26 @@ client.on('interactionCreate', async interaction => {
                         continue;
                     }
 
-                    // 2. 🤖 กรณี Auto Grading
+                    // Auto Grading
                     let validAnswers = [];
                     try { validAnswers = JSON.parse(ans.question.answers); } catch (e) { validAnswers = [ans.question.answers]; }
                     const validNormalized = validAnswers.map(v => v.trim().toLowerCase());
                     const userAnsNormalized = ans.answer.trim().toLowerCase();
 
-                    // เช็คว่าถูกหรือไม่
                     const isRight = validNormalized.some(v => v === userAnsNormalized);
 
                     if (isRight) {
-                        // ✅ [FIXED BUG] เช็คก่อนว่า "ของเดิม" เคยถูกไปแล้วหรือยัง?
-                        // ถ้าของเดิมยังไม่ถูก (false หรือ null) -> ถึงจะแจกแต้มเพิ่ม
-                        // ถ้าของเดิมถูกอยู่แล้ว (true) -> ไม่ต้องแจกซ้ำ
                         if (ans.isCorrect !== true) {
                             await prisma.user.upsert({
                                 where: { id: ans.userId },
                                 update: { souls: { increment: ans.question.rewardPoints } },
                                 create: { id: ans.userId, souls: ans.question.rewardPoints }
                             });
-                            console.log(`💰 Awarded points to ${ans.userId} for Q${ans.questionId}`);
                         }
-
-                        // อัปเดตสถานะเป็นถูก
                         await prisma.userAnswer.update({ where: { id: ans.id }, data: { isCorrect: true } });
-
-                        // นับคะแนนสำหรับ Role
                         if (!userCorrectCount[ans.userId]) userCorrectCount[ans.userId] = 0;
                         userCorrectCount[ans.userId]++;
                     } else {
-                        // ถ้าผิด ก็อัปเดตเป็นผิด (และไม่ได้แต้ม)
                         await prisma.userAnswer.update({ where: { id: ans.id }, data: { isCorrect: false } });
                     }
                 }
@@ -251,7 +242,7 @@ client.on('interactionCreate', async interaction => {
                     }
                 }
             }
-            await interaction.editReply(`✅ Status -> **${status}**`);
+            await interaction.editReply(`✅ Status updated to **${status}**`);
         }
     }
 
@@ -260,10 +251,10 @@ client.on('interactionCreate', async interaction => {
         const [, , setIdStr] = interaction.customId.split('_');
         const setId = parseInt(setIdStr);
         const set = await prisma.quizSet.findUnique({ where: { id: setId } });
-        if (set.status !== 'OPEN') return interaction.reply({ content: '⛔ ปิดแล้ว', ephemeral: true });
+        if (set.status !== 'OPEN') return interaction.reply({ content: '⛔ Event Closed', ephemeral: true });
 
         const existingAns = await prisma.userAnswer.findFirst({ where: { userId: interaction.user.id, question: { setId } } });
-        if (existingAns) return interaction.reply({ content: '✅ คุณส่งใบทำนายไปแล้ว! รอฟังผลนะครับ', ephemeral: true });
+        if (existingAns) return interaction.reply({ content: '✅ You have already submitted! Please wait for results.', ephemeral: true });
 
         const sessionKey = `${interaction.user.id}_${setId}`;
         if (bingoSessions.has(sessionKey)) {
@@ -291,8 +282,8 @@ client.on('interactionCreate', async interaction => {
 
     if (interaction.isButton() && interaction.customId.startsWith('bingo_text_')) {
         const [, , qIdStr, setIdStr] = interaction.customId.split('_');
-        const modal = new ModalBuilder().setCustomId(`modal_text_${qIdStr}_${setIdStr}`).setTitle('ระบุคำตอบ');
-        const input = new TextInputBuilder().setCustomId('ans_input').setLabel('คำตอบของคุณ').setStyle(TextInputStyle.Short).setRequired(true);
+        const modal = new ModalBuilder().setCustomId(`modal_text_${qIdStr}_${setIdStr}`).setTitle('Enter Answer');
+        const input = new TextInputBuilder().setCustomId('ans_input').setLabel('Your Answer').setStyle(TextInputStyle.Short).setRequired(true);
         modal.addComponents(new ActionRowBuilder().addComponents(input));
         await interaction.showModal(modal);
     }
@@ -333,7 +324,7 @@ client.on('interactionCreate', async interaction => {
             await sendLog(null, null, null, BINGO_CHANNEL_ID, bingoEmbed);
         }
 
-        const successEmbed = new EmbedBuilder().setTitle('✅ ส่งใบทำนายเรียบร้อย!').setDescription(`ระบบบันทึกใบ Bingo แล้ว:\n${bingoGrid}\n\nรอลุ้นผลประกาศ!`).setColor(0x57F287);
+        const successEmbed = new EmbedBuilder().setTitle('✅ Submission Successful!').setDescription(`Your Bingo card has been recorded:\n${bingoGrid}\n\nStay tuned for the results!`).setColor(0x57F287);
         await interaction.editReply({ embeds: [successEmbed], components: [] });
         bingoSessions.delete(sessionKey);
     }
@@ -343,22 +334,22 @@ client.on('interactionCreate', async interaction => {
         const set = await prisma.quizSet.findUnique({ where: { id: setId }, include: { questions: true } });
         const myAnswers = await prisma.userAnswer.findMany({ where: { userId: interaction.user.id, question: { setId } }, include: { question: true }, orderBy: { question: { order: 'asc' } } });
 
-        if (myAnswers.length === 0) return interaction.reply({ content: 'ไม่พบข้อมูลการเล่น', ephemeral: true });
+        if (myAnswers.length === 0) return interaction.reply({ content: 'No play data found.', ephemeral: true });
 
         let score = 0;
         let correctCount = 0;
         const details = myAnswers.map(ans => {
             let statusIcon = '❌';
             if (ans.isCorrect) { score += ans.question.rewardPoints; correctCount++; statusIcon = '✅'; }
-            return `**Q${ans.question.order}:** ${statusIcon} (คุณตอบ: ${ans.answer})`;
+            return `**Q${ans.question.order}:** ${statusIcon} (Your ans: ${ans.answer})`;
         }).join('\n');
 
-        let desc = `คุณได้รับรางวัลรวม: **${score} Souls**\n\n${details}`;
+        let desc = `Total Rewards: **${score} Souls**\n\n${details}`;
         if (set.completionRoleId) {
-            if (correctCount === set.questions.length) desc += `\n\n🎁 **PERFECT SCORE!**\nคุณได้รับยศพิเศษ <@&${set.completionRoleId}> แล้ว!`;
-            else desc += `\n\n⚠️ คุณพลาดไปนิดเดียว! (ต้องถูกครบทุกข้อถึงจะได้ยศพิเศษ)`;
+            if (correctCount === set.questions.length) desc += `\n\n🎁 **PERFECT SCORE!**\nYou have been awarded the role <@&${set.completionRoleId}>!`;
+            else desc += `\n\n⚠️ So close! (You need 100% correct to get the special role)`;
         }
-        const embed = new EmbedBuilder().setColor(0xF1C40F).setTitle(`🏆 ผลคะแนนของคุณ`).setDescription(desc);
+        const embed = new EmbedBuilder().setColor(0xF1C40F).setTitle(`🏆 Your Score Result`).setDescription(desc);
         await interaction.reply({ embeds: [embed], ephemeral: true });
     }
 });
@@ -386,7 +377,7 @@ async function sendNextBingoQuestion(interaction, setId, order, isUpdate = false
 
     if (nextQ) {
         const totalQ = await prisma.quizQuestion.count({ where: { setId } });
-        const embed = new EmbedBuilder().setColor(0x3498DB).setTitle(`📝 คำถามข้อที่ ${nextQ.order} / ${totalQ}`).setDescription(`**${nextQ.question}**`).setFooter({ text: 'เลือก/ระบุคำตอบของคุณ' });
+        const embed = new EmbedBuilder().setColor(0x3498DB).setTitle(`📝 Question ${nextQ.order} / ${totalQ}`).setDescription(`**${nextQ.question}**`).setFooter({ text: 'Select/Enter your answer' });
 
         let components = [];
         const type = nextQ.inputType || 'TEXT';
@@ -402,19 +393,19 @@ async function sendNextBingoQuestion(interaction, setId, order, isUpdate = false
             let options = [];
             try { options = JSON.parse(nextQ.options); } catch (e) { }
             if (options.length > 0) {
-                const select = new StringSelectMenuBuilder().setCustomId(`bingo_choice_${nextQ.id}_${setId}`).setPlaceholder('เลือกคำตอบ...').addOptions(options.map(opt => new StringSelectMenuOptionBuilder().setLabel(opt).setValue(opt)));
+                const select = new StringSelectMenuBuilder().setCustomId(`bingo_choice_${nextQ.id}_${setId}`).setPlaceholder('Select an answer...').addOptions(options.map(opt => new StringSelectMenuOptionBuilder().setLabel(opt).setValue(opt)));
                 components.push(new ActionRowBuilder().addComponents(select));
             } else { embed.setDescription('⚠️ Error: No options configured.'); }
         }
         else { // TEXT
-            const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`bingo_text_${nextQ.id}_${setId}`).setLabel('🔤 พิมพ์คำตอบ').setStyle(ButtonStyle.Primary));
+            const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`bingo_text_${nextQ.id}_${setId}`).setLabel('🔤 Type Answer').setStyle(ButtonStyle.Primary));
             components.push(row);
         }
 
         payload = { embeds: [embed], components: components, ephemeral: true };
     } else {
         const bingoGrid = generateBingoGrid(session.answers);
-        const summaryEmbed = new EmbedBuilder().setColor(0xF1C40F).setTitle('🧐 สรุปใบทำนายของคุณ').setDescription(`ตรวจสอบความถูกต้องก่อนยืนยัน\n\n${bingoGrid}`).setFooter({ text: 'กด Confirm เพื่อส่ง หรือ Edit เพื่อเริ่มใหม่' });
+        const summaryEmbed = new EmbedBuilder().setColor(0xF1C40F).setTitle('🧐 Prediction Summary').setDescription(`Review your answers before confirming\n\n${bingoGrid}`).setFooter({ text: 'Press Confirm to submit or Edit to restart' });
         const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId(`bingo_confirm_${setId}`).setLabel('Confirm').setStyle(ButtonStyle.Primary),
             new ButtonBuilder().setCustomId(`bingo_edit_${setId}`).setLabel('Edit').setStyle(ButtonStyle.Secondary)

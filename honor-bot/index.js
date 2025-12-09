@@ -14,11 +14,10 @@ const TOKEN = process.env.HONOR_BOT_TOKEN;
 const APP_ID = process.env.HONOR_BOT_APP_ID;
 const ADMIN_USER = process.env.ADMIN_USERNAME;
 const ADMIN_PASS = process.env.ADMIN_PASSWORD;
-const LEADERBOARD_CHANNEL_ID = process.env.LEADERBOARD_CHANNEL_ID; // ✅ รับค่าจาก .env
-const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID; // ค่าห้อง Log
+const LEADERBOARD_CHANNEL_ID = process.env.LEADERBOARD_CHANNEL_ID;
+const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID;
 
 // --- HELPER: Send Log ---
-// ✅ ฟังก์ชันนี้ต้องอยู่ตรงนี้ ห้ามหาย!
 async function sendLog(title, description, color = 0x0099FF) {
     if (!LOG_CHANNEL_ID) return;
     try {
@@ -49,7 +48,7 @@ const requireAuth = (req, res, next) => {
 };
 
 // ===========================
-// 🏆 LEADERBOARD SYSTEM (NEW)
+// 🏆 LEADERBOARD SYSTEM (TRANSLATED)
 // ===========================
 async function updateLeaderboard() {
     if (!LEADERBOARD_CHANNEL_ID) {
@@ -64,42 +63,44 @@ async function updateLeaderboard() {
             return;
         }
 
-        // 1. ดึง Top 10
+        // 1. Get Top 10
         const users = await prisma.user.findMany({
             take: 10,
             orderBy: { souls: 'desc' }
         });
 
-        // 2. จัดรูปแบบข้อความธีม Phantom Blade
+        // 2. Format Message (English Theme)
         let desc = "";
         if (users.length === 0) {
-            desc = "_ยังไม่มีจอมยุทธ์ท่านใดปรากฏกาย..._";
+            // "ยังไม่มีจอมยุทธ์..." -> "No warriors have stepped forth yet..."
+            desc = "_No warriors have stepped forth yet..._";
         } else {
             users.forEach((u, index) => {
                 const rank = index + 1;
-                let icon = '💀'; // อันดับทั่วไป
+                let icon = '💀';
                 let medal = '';
 
-                // ไอคอนพิเศษสำหรับ Top 3
                 if (rank === 1) { icon = '👹'; medal = ' **(Grandmaster)**'; }
                 if (rank === 2) { icon = '👺'; medal = ' **(Master)**'; }
                 if (rank === 3) { icon = '⚔️'; medal = ' **(Elite)**'; }
 
                 const name = u.username || 'Unknown Warrior';
-                // จัดหน้าสวยๆ
-                desc += `${icon} **อันดับ ${rank}** : **${name}**${medal}\n└─ 🩸 \`${u.souls}\` Souls\n\n`;
+                // "อันดับ" -> "Rank"
+                desc += `${icon} **Rank ${rank}** : **${name}**${medal}\n└─ 🩸 \`${u.souls}\` Souls\n\n`;
             });
         }
 
         const embed = new EmbedBuilder()
-            .setColor(0x8B0000) // สีแดงเลือดหมู (Blood Red)
-            .setTitle('📜 THE ORDER\'S BOUNTY LIST') // ทำเนียบค่าหัว
-            .setDescription(`*รายนามจอมยุทธ์ผู้แข็งแกร่งที่สุดในปฐพี*\n\n${desc}`)
-            .setImage('https://images.wallpapersden.com/image/download/phantom-blade-zero_bmdnaWmUmZqaraWkpJRmbmdlrWZlbWU.jpg') // รูป PBZ เท่ๆ
+            .setColor(0x8B0000)
+            .setTitle('📜 THE ORDER\'S BOUNTY LIST')
+            // "รายนามจอมยุทธ์..." -> "List of the strongest warriors in the realm"
+            .setDescription(`*List of the strongest warriors in the realm*\n\n${desc}`)
+            .setImage('https://images.wallpapersden.com/image/download/phantom-blade-zero_bmdnaWmUmZqaraWkpJRmbmdlrWZlbWU.jpg')
             .setTimestamp()
-            .setFooter({ text: 'อัปเดตอัตโนมัติทุก 1 นาที • Phantom Command' });
+            // "อัปเดตอัตโนมัติ..." -> "Auto-updates every 1 minute"
+            .setFooter({ text: 'Auto-updates every 1 minute • Phantom Command' });
 
-        // 3. หาข้อความเดิมของบอทเพื่อ Edit (ไม่ต้องลบโพสต์ใหม่)
+        // 3. Edit or Send
         const messages = await channel.messages.fetch({ limit: 5 });
         const botMsg = messages.find(m => m.author.id === client.user.id);
 
@@ -109,7 +110,6 @@ async function updateLeaderboard() {
             await channel.send({ embeds: [embed] });
         }
 
-        // เพิ่ม Log ความสำเร็จ
         console.log("✅ Leaderboard updated successfully at", new Date().toISOString());
 
     } catch (e) {
@@ -118,42 +118,38 @@ async function updateLeaderboard() {
 }
 
 // ===========================
-// 🔗 API ROUTES (Login/Users/Quiz/etc.)
+// 🔗 API ROUTES
 // ===========================
 
 app.get('/api/download-db', requireAuth, (req, res) => {
     const fs = require('fs');
     const path = require('path');
 
-    // รายชื่อ Path ที่เป็นไปได้ทั้งหมด (เรียงตามลำดับความน่าจะเป็น)
     const possiblePaths = [
-        '/app/prisma/dev.db',                      // 1. Path มาตรฐานใน Docker (สำคัญสุด)
-        path.join(process.cwd(), 'prisma/dev.db'), // 2. Path จากจุดที่รันคำสั่ง
-        path.join(__dirname, '../prisma/dev.db'),  // 3. Path ถอยหลังจากโฟลเดอร์ honor-bot
-        path.join(__dirname, 'prisma/dev.db')      // 4. เผื่อมันอยู่ในโฟลเดอร์เดียวกัน
+        '/app/prisma/dev.db',
+        path.join(process.cwd(), 'prisma/dev.db'),
+        path.join(__dirname, '../prisma/dev.db'),
+        path.join(__dirname, 'prisma/dev.db')
     ];
 
     let dbPath = null;
 
-    // 🔍 วนลูปหาไฟล์ว่ามีอยู่จริงที่ไหน
     console.log("🔍 Searching for database file...");
     for (const p of possiblePaths) {
         if (fs.existsSync(p)) {
             dbPath = p;
             console.log(`✅ FOUND database at: ${dbPath}`);
-            break; // เจอแล้วหยุดหา
+            break;
         } else {
             console.log(`❌ Not found at: ${p}`);
         }
     }
 
-    // ถ้าหาไม่เจอเลยสักที่
     if (!dbPath) {
         console.error("🔥 CRITICAL: Could not find database file in any known location.");
         return res.status(500).send("Database file not found on server. Check server logs.");
     }
 
-    // เจอแล้วสั่งโหลดเลย
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     res.download(dbPath, `backup-${timestamp}.db`, (err) => {
         if (err) {
@@ -165,30 +161,23 @@ app.get('/api/download-db', requireAuth, (req, res) => {
     });
 });
 
-// ✅ [NEW] ดึงข้อมูลการตอบของผู้ใช้ใน Quiz Set นั้นๆ
 app.get('/api/monitor/:setId', requireAuth, async (req, res) => {
     const { setId } = req.params;
     try {
-        // ดึงคำตอบทั้งหมด พร้อมข้อมูล User และ Question
         const answers = await prisma.userAnswer.findMany({
             where: { question: { setId: parseInt(setId) } },
-            include: {
-                user: true,
-                question: true
-            },
-            orderBy: { userId: 'asc' } // เรียงตามคน
+            include: { user: true, question: true },
+            orderBy: { userId: 'asc' }
         });
         res.json(answers);
     } catch (e) { res.status(500).json({ error: "Fetch answers failed" }); }
 });
 
-// ✅ [UPDATE] ตรวจคำตอบ (ตัด/เพิ่มแต้มทันที)
 app.put('/api/grade/:ansId', requireAuth, async (req, res) => {
     const { ansId } = req.params;
-    const { isCorrect } = req.body; // true = ให้คะแนน, false = ปรับตก
+    const { isCorrect } = req.body;
 
     try {
-        // 1. ดึงข้อมูลเก่าเพื่อดูว่าเคยตรวจไปหรือยัง (กันปั๊มแต้ม)
         const oldAns = await prisma.userAnswer.findUnique({
             where: { id: parseInt(ansId) },
             include: { question: true }
@@ -199,24 +188,18 @@ app.put('/api/grade/:ansId', requireAuth, async (req, res) => {
         const points = oldAns.question.rewardPoints;
         const userId = oldAns.userId;
 
-        // 2. Logic คำนวณแต้ม (Differential Update)
-        // ถ้าของเดิม 'ถูก' แล้วแก้เป็น 'ผิด' -> ต้องลบแต้ม
-        // ถ้าของเดิม 'ผิด/รอตรวจ' แล้วแก้เป็น 'ถูก' -> ต้องเพิ่มแต้ม
-
         let soulChange = 0;
-        const wasCorrect = oldAns.isCorrect === true; // true only
+        const wasCorrect = oldAns.isCorrect === true;
         const willBeCorrect = isCorrect === true;
 
-        if (!wasCorrect && willBeCorrect) soulChange = points;   // +Points
-        if (wasCorrect && !willBeCorrect) soulChange = -points;  // -Points
+        if (!wasCorrect && willBeCorrect) soulChange = points;
+        if (wasCorrect && !willBeCorrect) soulChange = -points;
 
-        // 3. อัปเดตสถานะคำตอบ
         await prisma.userAnswer.update({
             where: { id: parseInt(ansId) },
             data: { isCorrect }
         });
 
-        // 4. อัปเดตแต้ม User (ถ้ามีการเปลี่ยนแปลง)
         if (soulChange !== 0) {
             await prisma.user.update({
                 where: { id: userId },
@@ -272,7 +255,6 @@ app.get('/api/quiz-sets', requireAuth, async (req, res) => {
     res.json(sets);
 });
 
-// ✅ แก้ API นี้ให้สร้าง 9 ข้ออัตโนมัติถ้าเป็น BINGO
 app.post('/api/quiz-sets', requireAuth, async (req, res) => {
     const { title, description, completionRoleId, type } = req.body;
     try {
@@ -285,7 +267,6 @@ app.post('/api/quiz-sets', requireAuth, async (req, res) => {
             }
         });
 
-        // ✨ [NEW LOGIC] ถ้าเป็น Bingo ให้สร้าง 9 ข้อทันที
         if (newSet.type === 'BINGO') {
             const questions = [];
             for (let i = 1; i <= 9; i++) {
@@ -294,8 +275,8 @@ app.post('/api/quiz-sets', requireAuth, async (req, res) => {
                     order: i,
                     question: `Question ${i}`,
                     answers: JSON.stringify(['Yes']),
-                    inputType: 'BOOLEAN', // ✅ Default Type: Yes/No
-                    rewardPoints: 10,     // ✅ Default Reward: 10
+                    inputType: 'BOOLEAN',
+                    rewardPoints: 10,
                     isActive: true
                 });
             }
@@ -310,7 +291,6 @@ app.post('/api/quiz-sets', requireAuth, async (req, res) => {
     }
 });
 
-// ✅ [UPDATE] แก้ไขคำถาม (รองรับ manualGrading)
 app.put('/api/quizzes/:id', requireAuth, async (req, res) => {
     const { id } = req.params;
     const { question, answers, rewardPoints, order, inputType, options, manualGrading } = req.body;
@@ -322,7 +302,7 @@ app.put('/api/quizzes/:id', requireAuth, async (req, res) => {
             order: parseInt(order),
             inputType: inputType || 'TEXT',
             options: options || null,
-            manualGrading: manualGrading || false // ✅ บันทึกค่า
+            manualGrading: manualGrading || false
         };
 
         if (answers) {
@@ -355,7 +335,6 @@ app.delete('/api/quiz-sets/:id', requireAuth, async (req, res) => {
     } catch (e) { res.status(500).json({ error: "Delete failed" }); }
 });
 
-// --- QUESTIONS ---
 app.post('/api/quizzes', requireAuth, async (req, res) => {
     const { setId, question, answers, rewardPoints, order } = req.body;
     const ansArray = answers.split(',').map(a => a.trim());
@@ -381,16 +360,13 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
 
 client.once('ready', async () => {
     console.log(`🗡️  Honor Bot Online`);
-
-    // 👇 เพิ่ม log เช็คค่า
     console.log("DEBUG: Leaderboard Channel ID =", LEADERBOARD_CHANNEL_ID);
 
     if (APP_ID) await rest.put(Routes.applicationCommands(APP_ID), { body: commands });
 
-    // ✅ เริ่มต้นระบบ Leaderboard
     console.log("🏆 Starting Leaderboard System...");
-    updateLeaderboard(); // รันทันที 1 รอบ
-    setInterval(updateLeaderboard, 60 * 1000); // รันทุกๆ 60 วินาที
+    updateLeaderboard();
+    setInterval(updateLeaderboard, 60 * 1000);
 });
 
 client.on('interactionCreate', async (interaction) => {

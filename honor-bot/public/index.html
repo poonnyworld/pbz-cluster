@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Phantom Command</title>
     <style>
-        /* (Style เดิม + เพิ่มใหม่นิดหน่อย) */
+        /* (CSS เดิมทั้งหมด) */
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700&family=Noto+Sans:wght@400;700&display=swap');
 
         :root {
@@ -224,7 +224,7 @@
             <h1>🗡️ Phantom Command</h1>
             <div>
                 <button class="logout-btn" style="margin-right:10px; border-color:#4caf50; color:#4caf50;"
-                    onclick="location.href='/api/download-db'">⬇️ BACKUP</button>
+                    onclick="location.href='/api/download-db'">⬇️ BACKUP DB</button>
                 <button class="logout-btn" onclick="logout()">LOGOUT</button>
             </div>
         </header>
@@ -232,23 +232,23 @@
         <div class="grid-2">
             <div>
                 <div class="section">
-                    <h2>⚙️ Config</h2>
-                    <div style="display:flex; justify-content:space-between; padding:5px;"><label>Shop</label><input
-                            type="checkbox" id="toggle_shop" onchange="toggleConfig('shop_enabled',this.checked)"
-                            style="width:auto;"></div>
-                    <div style="display:flex; justify-content:space-between; padding:5px;"><label>Redeem</label><input
-                            type="checkbox" id="toggle_redeem" onchange="toggleConfig('redeem_enabled',this.checked)"
-                            style="width:auto;"></div>
+                    <h2>⚙️ System Config</h2>
+                    <div style="display:flex; justify-content:space-between; padding:5px;"><label>Shop
+                            (/store)</label><input type="checkbox" id="toggle_shop"
+                            onchange="toggleConfig('shop_enabled',this.checked)" style="width:auto;"></div>
+                    <div style="display:flex; justify-content:space-between; padding:5px;"><label>Redeem
+                            (/redeem)</label><input type="checkbox" id="toggle_redeem"
+                            onchange="toggleConfig('redeem_enabled',this.checked)" style="width:auto;"></div>
                 </div>
                 <div class="section">
-                    <h2>🏆 Warriors</h2>
+                    <h2>🏆 Warrior Rankings</h2>
                     <div style="height:300px; overflow-y:auto;">
                         <table id="userTable">
                             <thead>
                                 <tr>
                                     <th>Name</th>
                                     <th>Honor</th>
-                                    <th>Edit</th>
+                                    <th>Action</th>
                                 </tr>
                             </thead>
                             <tbody id="userBody"></tbody>
@@ -256,10 +256,11 @@
                     </div>
                 </div>
             </div>
+
             <div class="section">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                     <h2>📚 Quiz Sets</h2>
-                    <button class="btn-add" style="width:auto;" onclick="openModal('createSetModal')">+ New</button>
+                    <button class="btn-add" style="width:auto;" onclick="openModal('createSetModal')">+ NEW SET</button>
                 </div>
                 <div id="quizSetsContainer" style="margin-top:20px;"></div>
             </div>
@@ -277,8 +278,8 @@
                 <option value="BINGO" selected>🎯 Bingo Prediction</option>
                 <option value="STANDARD">📝 Standard Quiz</option>
             </select>
-            <input type="text" id="newSetRoleId" placeholder="Reward Role ID (Optional)">
-            <button class="btn-add" onclick="createSet()">Create</button>
+            <input type="text" id="newSetRoleId" placeholder="Completion Role ID (Optional)">
+            <button class="btn-add" onclick="createSet()">CREATE</button>
         </div>
     </div>
 
@@ -289,8 +290,8 @@
             <input type="hidden" id="editSetId">
             <label>Title</label><input type="text" id="editSetTitle">
             <label>Description</label><input type="text" id="editSetDesc">
-            <label>Role ID</label><input type="text" id="editSetRoleId">
-            <button class="btn-add" onclick="saveSet()">Save</button>
+            <label>Completion Role ID</label><input type="text" id="editSetRoleId">
+            <button class="btn-add" onclick="saveSet()">SAVE CHANGES</button>
         </div>
     </div>
 
@@ -318,7 +319,7 @@
             <div style="margin: 10px 0; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 4px;">
                 <label style="display:inline-flex; align-items:center; cursor:pointer;">
                     <input type="checkbox" id="editQManual" style="width:auto; margin-right:10px;">
-                    ✋ Manual Grading (แอดมินตรวจเอง)
+                    ✋ Manual Grading (Admin checks answer)
                 </label>
             </div>
 
@@ -330,7 +331,7 @@
             <label>Correct Answer</label>
             <div id="answerInputContainer"></div>
 
-            <button class="btn-add" onclick="saveQuestion()" style="margin-top:20px;">Save Changes</button>
+            <button class="btn-add" onclick="saveQuestion()" style="margin-top:20px;">SAVE QUESTION</button>
         </div>
     </div>
 
@@ -340,7 +341,7 @@
             <h3>👁️ Monitor & Grading</h3>
 
             <div style="margin-bottom:15px; display:flex; gap:10px; align-items:center;">
-                <label>Select Warrior:</label>
+                <label>Select User:</label>
                 <select id="monitorUserSelect" onchange="renderMonitorTable()" style="flex:1; margin:0;">
                     <option value="">-- Choose User --</option>
                 </select>
@@ -350,7 +351,7 @@
                 style="max-height:400px; overflow-y:auto; margin-bottom:20px; border:1px solid #333; padding:10px;">
             </div>
 
-            <button class="btn-add" onclick="saveGrades()" style="background:#4caf50;">✅ Confirm & Save Grades</button>
+            <button class="btn-add" onclick="saveGrades()" style="background:#4caf50;">✅ CONFIRM & SAVE GRADES</button>
         </div>
     </div>
 
@@ -358,7 +359,7 @@
         <div class="modal-content"><span class="close" onclick="closeModal('userModal')">&times;</span>
             <h3>Edit User</h3><input type="hidden" id="editUserId">
             <p id="editUserName"></p><input type="number" id="editUserSouls"><button class="btn-add"
-                onclick="saveUser()">Save</button>
+                onclick="saveUser()">SAVE</button>
         </div>
     </div>
 
@@ -376,26 +377,21 @@
 
         // --- CONFIG ---
         async function fetchConfig() { const r = await fetch('/api/config'); const c = await r.json(); document.getElementById('toggle_shop').checked = c['shop_enabled']; document.getElementById('toggle_redeem').checked = c['redeem_enabled']; }
-        async function toggleConfig(k, v) { await fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: k, value: v }) }); showToast("Saved"); }
+        async function toggleConfig(k, v) { await fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: k, value: v }) }); showToast("Config Saved"); }
 
         // --- FETCH SETS ---
         async function fetchSets() { const r = await fetch('/api/quiz-sets'); if (r.ok) { allSets = await r.json(); renderSets(); } }
 
-        // ✅ RENDER SETS (ปรับปรุงใหม่: Standard หน้าตาเหมือน Bingo)
+        // ✅ RENDER SETS
         function renderSets() {
             const c = document.getElementById('quizSetsContainer'); c.innerHTML = '';
             allSets.forEach(s => {
                 const isBingo = s.type === 'BINGO';
                 const qs = s.questions.sort((a, b) => a.order - b.order);
 
-                // สร้าง HTML รายการคำถาม
                 const qHtml = qs.map(q => {
                     let ansStr = ''; try { ansStr = JSON.parse(q.answers).join(', '); } catch (e) { ansStr = q.answers }
-
-                    // Badge ประเภทคำถาม
                     const typeBadge = `<span style="font-size:0.7em; background:#333; padding:2px 5px; border-radius:3px; color:#aaa; margin-right:5px; border:1px solid #444;">${q.inputType || 'TEXT'}</span>`;
-
-                    // Icon Manual Grading
                     const manualIcon = q.manualGrading ? '✋ ' : '';
 
                     return `<div style="background:rgba(0,0,0,0.3);padding:10px;margin:5px 0;display:flex;justify-content:space-between;align-items:center;">
@@ -411,7 +407,6 @@
                     </div>`;
                 }).join('');
 
-                // ปุ่มเพิ่มคำถาม (สำหรับ Standard) - เปลี่ยนเป็นปุ่มเดียว ไม่ต้องกรอก
                 let addHtml = '';
                 if (!isBingo) {
                     addHtml = `
@@ -443,61 +438,50 @@
         }
 
         // --- ACTIONS ---
-        // ✅ addQ แบบใหม่: สร้างคำถาม Default ทันที (ไม่ต้องรับค่าจาก Input)
         async function addQ(sid) {
-            // หา order ถัดไป
             const s = allSets.find(x => x.id === sid);
             const nextOrder = s.questions.length + 1;
-
             await fetch('/api/quizzes', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     setId: sid,
-                    question: "New Question (Click Edit)", // ชื่อเริ่มต้น
+                    question: "New Question (Click Edit)",
                     answers: "Yes",
                     rewardPoints: 10,
                     order: nextOrder,
-                    inputType: 'BOOLEAN' // เริ่มต้นเป็น Yes/No
+                    inputType: 'BOOLEAN'
                 })
             });
             fetchSets();
-            showToast("Added new question");
+            showToast("Question Added");
         }
 
         async function createSet() {
             const t = document.getElementById('newSetTitle').value; const d = document.getElementById('newSetDesc').value; const r = document.getElementById('newSetRoleId').value; const type = document.getElementById('newSetType').value;
             const res = await fetch('/api/quiz-sets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: t, description: d, completionRoleId: r, type: type }) });
-            if (res.ok) { showToast("Created"); closeModal('createSetModal'); fetchSets(); } else showToast("Failed", false);
+            if (res.ok) { showToast("Set Created"); closeModal('createSetModal'); fetchSets(); } else showToast("Failed to create", false);
         }
         function openEditSet(id) { const s = allSets.find(x => x.id === id); document.getElementById('editSetId').value = id; document.getElementById('editSetTitle').value = s.title; document.getElementById('editSetDesc').value = s.description; document.getElementById('editSetRoleId').value = s.completionRoleId || ''; openModal('editSetModal'); }
-        async function saveSet() { const id = document.getElementById('editSetId').value; await fetch(`/api/quiz-sets/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: document.getElementById('editSetTitle').value, description: document.getElementById('editSetDesc').value, completionRoleId: document.getElementById('editSetRoleId').value }) }); closeModal('editSetModal'); fetchSets(); showToast("Updated"); }
-        async function delSet(id) { if (confirm("Delete?")) { await fetch(`/api/quiz-sets/${id}`, { method: 'DELETE' }); fetchSets(); showToast("Deleted"); } }
-        async function delQ(id) { if (confirm("Delete?")) { await fetch(`/api/quizzes/${id}`, { method: 'DELETE' }); fetchSets(); showToast("Deleted"); } }
+        async function saveSet() { const id = document.getElementById('editSetId').value; await fetch(`/api/quiz-sets/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: document.getElementById('editSetTitle').value, description: document.getElementById('editSetDesc').value, completionRoleId: document.getElementById('editSetRoleId').value }) }); closeModal('editSetModal'); fetchSets(); showToast("Set Updated"); }
+        async function delSet(id) { if (confirm("Delete this set?")) { await fetch(`/api/quiz-sets/${id}`, { method: 'DELETE' }); fetchSets(); showToast("Set Deleted"); } }
+        async function delQ(id) { if (confirm("Delete this question?")) { await fetch(`/api/quizzes/${id}`, { method: 'DELETE' }); fetchSets(); showToast("Question Deleted"); } }
 
-        // --- EDIT QUESTION (Dynamic) ---
+        // --- EDIT QUESTION ---
         function openEditQ(qid, sid) {
             const s = allSets.find(x => x.id === sid); const q = s.questions.find(x => x.id === qid);
             document.getElementById('editQId').value = q.id;
             document.getElementById('editQOrder').value = q.order;
             document.getElementById('editQText').value = q.question;
             document.getElementById('editQReward').value = q.rewardPoints;
-
-            // Set Checkbox Manual Grading
             document.getElementById('editQManual').checked = q.manualGrading || false;
-
             document.getElementById('editQType').value = q.inputType || 'TEXT';
             let opts = ''; try { if (q.options) opts = JSON.parse(q.options).join(','); } catch (e) { }
             document.getElementById('editQOptions').value = opts;
-
             renderAnswerInput();
-
             let ansVal = q.answers;
             try { const p = JSON.parse(q.answers); if (Array.isArray(p)) ansVal = p[0]; } catch (e) { }
-            setTimeout(() => {
-                const input = document.getElementById('dynamicAnsInput');
-                if (input) input.value = ansVal;
-            }, 50);
+            setTimeout(() => { const input = document.getElementById('dynamicAnsInput'); if (input) input.value = ansVal; }, 50);
             openModal('editQModal');
         }
 
@@ -515,7 +499,7 @@
                 const optsText = document.getElementById('editQOptions').value;
                 const opts = optsText.split(',').filter(x => x.trim() !== '');
                 let html = `<select id="dynamicAnsInput" style="width:100%;padding:10px;background:#222;border:1px solid #444;color:white;">`;
-                if (opts.length === 0) html += `<option value="">(Add options first)</option>`;
+                if (opts.length === 0) html += `<option value="">(Add options above first)</option>`;
                 opts.forEach(o => html += `<option value="${o.trim()}">${o.trim()}</option>`);
                 html += `</select>`;
                 container.innerHTML = html;
@@ -542,7 +526,7 @@
                 manualGrading: document.getElementById('editQManual').checked
             };
             await fetch(`/api/quizzes/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-            closeModal('editQModal'); fetchSets(); showToast("Updated");
+            closeModal('editQModal'); fetchSets(); showToast("Question Updated");
         }
 
         // --- MONITOR ---
@@ -552,7 +536,7 @@
             const users = {}; currentAnswers.forEach(a => users[a.userId] = a.user.username);
             const select = document.getElementById('monitorUserSelect'); select.innerHTML = '<option value="">-- Choose User --</option>';
             Object.keys(users).forEach(uid => { select.innerHTML += `<option value="${uid}">${users[uid]}</option>` });
-            document.getElementById('monitorContent').innerHTML = '<p style="text-align:center;color:#888;">Please select a user.</p>';
+            document.getElementById('monitorContent').innerHTML = '<p style="text-align:center;color:#888;">Please select a user to grade.</p>';
             openModal('monitorModal');
         }
         function renderMonitorTable() {
@@ -574,7 +558,7 @@
         }
         function stageGrade(ansId, isCorrect) { pendingChanges[ansId] = isCorrect; renderMonitorTable(); }
         async function saveGrades() {
-            const p = [], ids = Object.keys(pendingChanges); if (ids.length === 0) return showToast("No changes", false);
+            const p = [], ids = Object.keys(pendingChanges); if (ids.length === 0) return showToast("No changes to save", false);
             ids.forEach(id => { p.push(fetch(`/api/grade/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isCorrect: pendingChanges[id] }) })); });
             await Promise.all(p); ids.forEach(id => { const a = currentAnswers.find(x => x.id == id); if (a) a.isCorrect = pendingChanges[id]; });
             pendingChanges = {}; renderMonitorTable(); showToast(`Saved ${ids.length} changes!`);
