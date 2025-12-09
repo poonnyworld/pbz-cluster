@@ -33,7 +33,7 @@ async function sendLog(title, description, color = 0x0099FF, channelId = LOG_CHA
     } catch (e) { console.error(`Log Error (${channelId}):`, e.message); }
 }
 
-// ✅ [NEW] Helper: Word Wrap
+// ✅ Helper: Word Wrap
 function wordWrap(str, maxWidth) {
     const res = [];
     let currentLine = "";
@@ -48,7 +48,7 @@ function wordWrap(str, maxWidth) {
     return res;
 }
 
-// ✅ [UPDATE] Generate Bingo Grid (Multi-line)
+// ✅ Generate Bingo Grid (Multi-line)
 function generateBingoGrid(answersList) {
     const sorted = answersList.sort((a, b) => a.order - b.order);
     const colWidth = 14;
@@ -132,6 +132,7 @@ async function createPanelPayload(setId) {
     } else if (set.status === 'REVEALED') {
         const answerKey = set.questions.map(q => {
             let ans = q.answers; try { ans = JSON.parse(q.answers)[0]; } catch (e) { }
+            // Optional: You can add (100 Honor) here if you want
             return `**Q${q.order}.** ${q.question}\nAnswer: **${ans}**`;
         }).join('\n\n');
         let desc = `🎉 **Prediction Results!**\n\n${answerKey}`;
@@ -344,7 +345,9 @@ client.on('interactionCreate', async interaction => {
             return `**Q${ans.question.order}:** ${statusIcon} (Your ans: ${ans.answer})`;
         }).join('\n');
 
-        let desc = `Total Rewards: **${score} Souls**\n\n${details}`;
+        // ✅ CHANGED: Souls -> Honor
+        let desc = `Total Rewards: **${score} Honor**\n\n${details}`;
+
         if (set.completionRoleId) {
             if (correctCount === set.questions.length) desc += `\n\n🎁 **PERFECT SCORE!**\nYou have been awarded the role <@&${set.completionRoleId}>!`;
             else desc += `\n\n⚠️ So close! (You need 100% correct to get the special role)`;

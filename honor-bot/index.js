@@ -48,7 +48,7 @@ const requireAuth = (req, res, next) => {
 };
 
 // ===========================
-// 🏆 LEADERBOARD SYSTEM (TRANSLATED)
+// 🏆 LEADERBOARD SYSTEM (ENGLISH + HONOR)
 // ===========================
 async function updateLeaderboard() {
     if (!LEADERBOARD_CHANNEL_ID) {
@@ -66,14 +66,13 @@ async function updateLeaderboard() {
         // 1. Get Top 10
         const users = await prisma.user.findMany({
             take: 10,
-            orderBy: { souls: 'desc' }
+            orderBy: { souls: 'desc' } // (Database field is still 'souls')
         });
 
-        // 2. Format Message (English Theme)
+        // 2. Format Message
         let desc = "";
         if (users.length === 0) {
-            // "ยังไม่มีจอมยุทธ์..." -> "No warriors have stepped forth yet..."
-            desc = "_No warriors have stepped forth yet..._";
+            desc = "_No warriors have appeared yet..._";
         } else {
             users.forEach((u, index) => {
                 const rank = index + 1;
@@ -85,19 +84,17 @@ async function updateLeaderboard() {
                 if (rank === 3) { icon = '⚔️'; medal = ' **(Elite)**'; }
 
                 const name = u.username || 'Unknown Warrior';
-                // "อันดับ" -> "Rank"
-                desc += `${icon} **Rank ${rank}** : **${name}**${medal}\n└─ 🩸 \`${u.souls}\` Souls\n\n`;
+                // ✅ Changed Souls -> Honor
+                desc += `${icon} **Rank ${rank}** : **${name}**${medal}\n└─ 🩸 \`${u.souls}\` Honor\n\n`;
             });
         }
 
         const embed = new EmbedBuilder()
             .setColor(0x8B0000)
             .setTitle('📜 THE ORDER\'S BOUNTY LIST')
-            // "รายนามจอมยุทธ์..." -> "List of the strongest warriors in the realm"
             .setDescription(`*List of the strongest warriors in the realm*\n\n${desc}`)
             .setImage('https://images.wallpapersden.com/image/download/phantom-blade-zero_bmdnaWmUmZqaraWkpJRmbmdlrWZlbWU.jpg')
             .setTimestamp()
-            // "อัปเดตอัตโนมัติ..." -> "Auto-updates every 1 minute"
             .setFooter({ text: 'Auto-updates every 1 minute • Phantom Command' });
 
         // 3. Edit or Send
@@ -133,7 +130,6 @@ app.get('/api/download-db', requireAuth, (req, res) => {
     ];
 
     let dbPath = null;
-
     console.log("🔍 Searching for database file...");
     for (const p of possiblePaths) {
         if (fs.existsSync(p)) {
@@ -291,26 +287,25 @@ app.post('/api/quiz-sets', requireAuth, async (req, res) => {
     }
 });
 
-app.put('/api/quizzes/:id', requireAuth, async (req, res) => {
+app.put('/api/quiz-sets/:id', requireAuth, async (req, res) => {
     const { id } = req.params;
-    const { question, answers, rewardPoints, order, inputType, options, manualGrading } = req.body;
+    const { title, description, status, completionRoleId } = req.body;
 
     try {
-        const updateData = {
-            question,
-            rewardPoints: parseInt(rewardPoints),
-            order: parseInt(order),
-            inputType: inputType || 'TEXT',
-            options: options || null,
-            manualGrading: manualGrading || false
-        };
-
-        if (answers) {
-            const ansArray = answers.split(',').map(a => a.trim());
-            updateData.answers = JSON.stringify(ansArray);
+        if (status === 'OPEN') {
+            const checkSet = await prisma.quizSet.findUnique({
+                where: { id: parseInt(id) },
+                include: { questions: true }
+            });
+            if (checkSet.type === 'BINGO' && checkSet.questions.length !== 9) {
+                return res.status(400).json({ error: `Bingo requires exactly 9 questions (current: ${checkSet.questions.length})` });
+            }
         }
 
-        const updated = await prisma.quizQuestion.update({ where: { id: parseInt(id) }, data: updateData });
+        const updated = await prisma.quizSet.update({
+            where: { id: parseInt(id) },
+            data: { title, description, status, completionRoleId }
+        });
         res.json(updated);
     } catch (e) { res.status(500).json({ error: "Update failed" }); }
 });
@@ -335,8 +330,32 @@ app.delete('/api/quiz-sets/:id', requireAuth, async (req, res) => {
     } catch (e) { res.status(500).json({ error: "Delete failed" }); }
 });
 
+app.put('/api/quizzes/:id', requireAuth, async (req, res) => {
+    const { id } = req.params;
+    const { question, answers, rewardPoints, order, inputType, options, manualGrading } = req.body;
+
+    try {
+        const updateData = {
+            question,
+            rewardPoints: parseInt(rewardPoints),
+            order: parseInt(order),
+            inputType: inputType || 'TEXT',
+            options: options || null,
+            manualGrading: manualGrading || false
+        };
+
+        if (answers) {
+            const ansArray = answers.split(',').map(a => a.trim());
+            updateData.answers = JSON.stringify(ansArray);
+        }
+
+        const updated = await prisma.quizQuestion.update({ where: { id: parseInt(id) }, data: updateData });
+        res.json(updated);
+    } catch (e) { res.status(500).json({ error: "Update failed" }); }
+});
+
 app.post('/api/quizzes', requireAuth, async (req, res) => {
-    const { setId, question, answers, rewardPoints, order } = req.body;
+    const { setId, question, answers, rewardPoints, order, inputType } = req.body;
     const ansArray = answers.split(',').map(a => a.trim());
     try {
         const newQ = await prisma.quizQuestion.create({
@@ -345,7 +364,8 @@ app.post('/api/quizzes', requireAuth, async (req, res) => {
                 question,
                 answers: JSON.stringify(ansArray),
                 rewardPoints: parseInt(rewardPoints),
-                order: parseInt(order) || 0
+                order: parseInt(order) || 0,
+                inputType: inputType || 'TEXT'
             }
         });
         res.json(newQ);
@@ -354,17 +374,15 @@ app.post('/api/quizzes', requireAuth, async (req, res) => {
 
 // --- DISCORD BOT ---
 const commands = [
-    new SlashCommandBuilder().setName('balance').setDescription('💰 Check your Souls balance'),
+    // ✅ Changed description to "Honor balance"
+    new SlashCommandBuilder().setName('balance').setDescription('💰 Check your Honor balance'),
 ];
 const rest = new REST({ version: '10' }).setToken(TOKEN);
 
 client.once('ready', async () => {
     console.log(`🗡️  Honor Bot Online`);
-    console.log("DEBUG: Leaderboard Channel ID =", LEADERBOARD_CHANNEL_ID);
-
     if (APP_ID) await rest.put(Routes.applicationCommands(APP_ID), { body: commands });
 
-    console.log("🏆 Starting Leaderboard System...");
     updateLeaderboard();
     setInterval(updateLeaderboard, 60 * 1000);
 });
@@ -374,7 +392,8 @@ client.on('interactionCreate', async (interaction) => {
     if (interaction.commandName === 'balance') {
         const user = await prisma.user.findUnique({ where: { id: interaction.user.id } });
         const souls = user ? user.souls : 0;
-        interaction.reply({ content: `🥷 **${interaction.user.username}**, you have **${souls}** souls.`, ephemeral: true });
+        // ✅ Changed message to "Honor"
+        interaction.reply({ content: `🥷 **${interaction.user.username}**, you have **${souls}** Honor.`, ephemeral: true });
     }
 });
 
