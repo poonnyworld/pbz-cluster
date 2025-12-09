@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Phantom Command</title>
     <style>
+        /* (Style เดิม + เพิ่มใหม่นิดหน่อย) */
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700&family=Noto+Sans:wght@400;700&display=swap');
 
         :root {
@@ -64,7 +65,7 @@
         }
 
         .container {
-            max-width: 1100px;
+            max-width: 1200px;
             margin: 0 auto;
             display: grid;
             gap: 30px;
@@ -83,7 +84,6 @@
             font-family: 'Cinzel', serif;
             color: #fff;
             margin: 0;
-            text-shadow: 0 0 10px var(--primary);
             font-size: 2.5rem;
         }
 
@@ -126,12 +126,13 @@
 
         .grid-2 {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: 300px 1fr;
             gap: 20px;
         }
 
         input,
-        select {
+        select,
+        textarea {
             padding: 10px;
             width: 100%;
             box-sizing: border-box;
@@ -186,10 +187,12 @@
 
         .modal-content {
             background: #1a1a1a;
-            margin: 10% auto;
+            margin: 5% auto;
             padding: 30px;
             border: 1px solid var(--primary);
-            width: 400px;
+            width: 500px;
+            max-height: 80vh;
+            overflow-y: auto;
             position: relative;
         }
 
@@ -197,6 +200,19 @@
             float: right;
             font-size: 28px;
             cursor: pointer;
+        }
+
+        /* Grading Style */
+        .grade-btn {
+            cursor: pointer;
+            opacity: 0.5;
+            font-size: 1.2em;
+            margin: 0 5px;
+        }
+
+        .grade-btn.active {
+            opacity: 1;
+            transform: scale(1.2);
         }
     </style>
 </head>
@@ -256,10 +272,10 @@
             <h3>Create Quiz Set</h3>
             <input type="text" id="newSetTitle" placeholder="Title">
             <input type="text" id="newSetDesc" placeholder="Description">
-            <label style="display:block; margin-top:10px; color:#aaa;">Quiz Type:</label>
-            <select id="newSetType" style="margin-bottom:15px;">
-                <option value="BINGO" selected>🎯 Bingo Prediction (Yes/No)</option>
-                <option value="STANDARD">📝 Standard Quiz (Text Input)</option>
+            <label style="color:#aaa;">Type:</label>
+            <select id="newSetType">
+                <option value="BINGO" selected>🎯 Bingo Prediction</option>
+                <option value="STANDARD">📝 Standard Quiz</option>
             </select>
             <input type="text" id="newSetRoleId" placeholder="Reward Role ID (Optional)">
             <button class="btn-add" onclick="createSet()">Create</button>
@@ -289,28 +305,60 @@
                 </div>
             </div>
 
-            <label>Question</label>
-            <input type="text" id="editQText" placeholder="Question">
-
-            <label>Correct Answer</label>
-            <select id="editQAns"
-                style="width:100%; padding:10px; background:#222; border:1px solid #444; color:white; margin-bottom:10px;">
-                <option value="Yes">Yes</option>
-                <option value="No">No</option>
+            <label>Question Type</label>
+            <select id="editQType" onchange="renderAnswerInput()">
+                <option value="BOOLEAN">✅ Yes / No</option>
+                <option value="CHOICE">🔽 Dropdown Choice</option>
+                <option value="TEXT">🔤 Text Input</option>
             </select>
 
-            <button class="btn-add" onclick="saveQuestion()">Save</button>
+            <label>Question</label>
+            <input type="text" id="editQText">
+
+            <div style="margin: 10px 0; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 4px;">
+                <label style="display:inline-flex; align-items:center; cursor:pointer;">
+                    <input type="checkbox" id="editQManual" style="width:auto; margin-right:10px;">
+                    ✋ Manual Grading (แอดมินตรวจเอง)
+                </label>
+            </div>
+
+            <div id="divOptions" style="display:none;">
+                <label>Choices (comma separated, e.g. Jan,Feb,Mar)</label>
+                <input type="text" id="editQOptions" onkeyup="renderAnswerInput()">
+            </div>
+
+            <label>Correct Answer</label>
+            <div id="answerInputContainer"></div>
+
+            <button class="btn-add" onclick="saveQuestion()" style="margin-top:20px;">Save Changes</button>
+        </div>
+    </div>
+
+    <div id="monitorModal" class="modal">
+        <div class="modal-content" style="width:700px;">
+            <span class="close" onclick="closeModal('monitorModal')">&times;</span>
+            <h3>👁️ Monitor & Grading</h3>
+
+            <div style="margin-bottom:15px; display:flex; gap:10px; align-items:center;">
+                <label>Select Warrior:</label>
+                <select id="monitorUserSelect" onchange="renderMonitorTable()" style="flex:1; margin:0;">
+                    <option value="">-- Choose User --</option>
+                </select>
+            </div>
+
+            <div id="monitorContent"
+                style="max-height:400px; overflow-y:auto; margin-bottom:20px; border:1px solid #333; padding:10px;">
+            </div>
+
+            <button class="btn-add" onclick="saveGrades()" style="background:#4caf50;">✅ Confirm & Save Grades</button>
         </div>
     </div>
 
     <div id="userModal" class="modal">
-        <div class="modal-content">
-            <span class="close" onclick="closeModal('userModal')">&times;</span>
-            <h3>Edit User</h3>
-            <input type="hidden" id="editUserId">
-            <p id="editUserName"></p>
-            <input type="number" id="editUserSouls">
-            <button class="btn-add" onclick="saveUser()">Save</button>
+        <div class="modal-content"><span class="close" onclick="closeModal('userModal')">&times;</span>
+            <h3>Edit User</h3><input type="hidden" id="editUserId">
+            <p id="editUserName"></p><input type="number" id="editUserSouls"><button class="btn-add"
+                onclick="saveUser()">Save</button>
         </div>
     </div>
 
@@ -322,113 +370,215 @@
         let allSets = [];
 
         // --- USERS ---
-        async function fetchUsers() {
-            const r = await fetch('/api/users'); const u = await r.json();
-            document.getElementById('userBody').innerHTML = u.map(x => `<tr><td>${x.username}</td><td><span class="badge">${x.souls}</span></td><td><button class="btn-icon" onclick="openUserModal('${x.id}','${x.username}',${x.souls})">✏️</button></td></tr>`).join('');
-        }
+        async function fetchUsers() { const r = await fetch('/api/users'); const u = await r.json(); document.getElementById('userBody').innerHTML = u.map(x => `<tr><td>${x.username}</td><td><span class="badge">${x.souls}</span></td><td><button class="btn-icon" onclick="openUserModal('${x.id}','${x.username}',${x.souls})">✏️</button></td></tr>`).join(''); }
         function openUserModal(id, n, s) { document.getElementById('userModal').style.display = 'block'; document.getElementById('editUserId').value = id; document.getElementById('editUserName').innerText = n; document.getElementById('editUserSouls').value = s; }
-        async function saveUser() {
-            await fetch(`/api/users/${document.getElementById('editUserId').value}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ souls: document.getElementById('editUserSouls').value }) });
-            closeModal('userModal'); fetchUsers(); showToast("Saved");
-        }
+        async function saveUser() { await fetch(`/api/users/${document.getElementById('editUserId').value}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ souls: document.getElementById('editUserSouls').value }) }); closeModal('userModal'); fetchUsers(); showToast("Saved"); }
 
         // --- CONFIG ---
-        async function fetchConfig() {
-            const r = await fetch('/api/config'); const c = await r.json();
-            document.getElementById('toggle_shop').checked = c['shop_enabled']; document.getElementById('toggle_redeem').checked = c['redeem_enabled'];
-        }
+        async function fetchConfig() { const r = await fetch('/api/config'); const c = await r.json(); document.getElementById('toggle_shop').checked = c['shop_enabled']; document.getElementById('toggle_redeem').checked = c['redeem_enabled']; }
         async function toggleConfig(k, v) { await fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: k, value: v }) }); showToast("Saved"); }
 
-        // --- QUIZ SETS ---
-        async function fetchSets() {
-            const r = await fetch('/api/quiz-sets'); if (r.ok) { allSets = await r.json(); renderSets(); }
-        }
+        // --- FETCH SETS ---
+        async function fetchSets() { const r = await fetch('/api/quiz-sets'); if (r.ok) { allSets = await r.json(); renderSets(); } }
 
+        // ✅ RENDER SETS (ปรับปรุงใหม่: Standard หน้าตาเหมือน Bingo)
         function renderSets() {
             const c = document.getElementById('quizSetsContainer'); c.innerHTML = '';
             allSets.forEach(s => {
-                // เช็คว่าเป็น Bingo หรือไม่
                 const isBingo = s.type === 'BINGO';
                 const qs = s.questions.sort((a, b) => a.order - b.order);
 
+                // สร้าง HTML รายการคำถาม
                 const qHtml = qs.map(q => {
-                    let ans = ''; try { ans = JSON.parse(q.answers).join(', '); } catch (e) { ans = q.answers }
+                    let ansStr = ''; try { ansStr = JSON.parse(q.answers).join(', '); } catch (e) { ansStr = q.answers }
 
-                    // ✅ ซ่อนปุ่มลบ ถ้าเป็น Bingo
-                    const delBtn = isBingo ? '' : `<button class="btn-icon" onclick="delQ(${q.id})">🗑️</button>`;
+                    // Badge ประเภทคำถาม
+                    const typeBadge = `<span style="font-size:0.7em; background:#333; padding:2px 5px; border-radius:3px; color:#aaa; margin-right:5px; border:1px solid #444;">${q.inputType || 'TEXT'}</span>`;
+
+                    // Icon Manual Grading
+                    const manualIcon = q.manualGrading ? '✋ ' : '';
 
                     return `<div style="background:rgba(0,0,0,0.3);padding:10px;margin:5px 0;display:flex;justify-content:space-between;align-items:center;">
-                        <div style="flex:1;"><b>#${q.order}</b> ${q.question}<br><small style="color:#aaa">Ans: ${ans} | ${q.rewardPoints}pts</small></div>
-                        <div><button class="btn-icon" onclick="openEditQ(${q.id},${s.id})">✏️</button>${delBtn}</div>
+                        <div style="flex:1;">
+                            ${typeBadge}
+                            <b>#${q.order}</b> ${manualIcon}${q.question}<br>
+                            <small style="color:#aaa">Ans: ${ansStr} | ${q.rewardPoints}pts</small>
+                        </div>
+                        <div>
+                            <button class="btn-icon" onclick="openEditQ(${q.id},${s.id})">✏️</button>
+                            ${isBingo ? '' : `<button class="btn-icon" onclick="delQ(${q.id})">🗑️</button>`}
+                        </div>
                     </div>`;
                 }).join('');
 
-                // ✅ ซ่อนฟอร์มเพิ่มคำถาม ถ้าเป็น Bingo
-                let addFormHtml = '';
+                // ปุ่มเพิ่มคำถาม (สำหรับ Standard) - เปลี่ยนเป็นปุ่มเดียว ไม่ต้องกรอก
+                let addHtml = '';
                 if (!isBingo) {
-                    addFormHtml = `
-                    <div style="background:rgba(0,0,0,0.2);padding:10px;border-radius:4px;display:flex;gap:5px;">
-                        <input id="q_o_${s.id}" type="number" placeholder="#" value="${qs.length + 1}" style="width:50px;margin:0;">
-                        <input id="q_t_${s.id}" placeholder="New Question" style="flex:2;margin:0;">
-                        <select id="q_a_${s.id}" style="flex:1;margin:0;padding:10px;background:#222;border:1px solid #444;color:white;">
-                            <option value="Yes">Yes</option>
-                            <option value="No">No</option>
-                        </select>
-                        <input id="q_r_${s.id}" type="number" value="100" style="width:60px;margin:0;">
-                        <button class="btn-add" style="width:auto;padding:0 15px;" onclick="addQ(${s.id})">+</button>
+                    addHtml = `
+                    <div style="padding:10px; text-align:center; border-top:1px dashed #444; margin-top:5px;">
+                        <button class="btn-add" style="width:auto; background:transparent; border:1px dashed #666; color:#aaa; padding:5px 15px;" onclick="addQ(${s.id})">
+                            + Add New Question
+                        </button>
                     </div>`;
                 }
 
                 c.innerHTML += `
                 <div style="background:rgba(255,255,255,0.05);padding:15px;margin-bottom:15px;border-radius:4px;">
                     <div style="display:flex;justify-content:space-between;border-bottom:1px solid #444;padding-bottom:10px;margin-bottom:10px;">
-                        <div><h3 style="margin:0;display:inline;">${s.title}</h3><span class="status-badge status-${s.status}">${s.status}</span><span style="background:${isBingo ? '#9b59b6' : '#34495e'};padding:2px 6px;border-radius:3px;font-size:0.75em;margin-left:5px;">${s.type}</span><div style="color:#888;font-size:0.9em;">${s.description || ''}</div></div>
-                        <div><button class="btn-icon" onclick="openEditSet(${s.id})">📝</button><button class="btn-icon" onclick="delSet(${s.id})">🗑️</button></div>
+                        <div>
+                            <h3 style="margin:0;display:inline;">${s.title}</h3>
+                            <span class="status-badge status-${s.status}">${s.status}</span>
+                            <span class="status-badge" style="background:${isBingo ? '#9b59b6' : '#34495e'}">${s.type}</span>
+                        </div>
+                        <div>
+                            <button class="btn-icon" onclick="openMonitor(${s.id})" title="Monitor & Grade">👁️</button>
+                            <button class="btn-icon" onclick="openEditSet(${s.id})">📝</button>
+                            <button class="btn-icon" onclick="delSet(${s.id})">🗑️</button>
+                        </div>
                     </div>
-                    ${addFormHtml}
                     <div style="margin-top:10px;">${qHtml}</div>
+                    ${addHtml}
                 </div>`;
             });
         }
 
         // --- ACTIONS ---
+        // ✅ addQ แบบใหม่: สร้างคำถาม Default ทันที (ไม่ต้องรับค่าจาก Input)
+        async function addQ(sid) {
+            // หา order ถัดไป
+            const s = allSets.find(x => x.id === sid);
+            const nextOrder = s.questions.length + 1;
+
+            await fetch('/api/quizzes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    setId: sid,
+                    question: "New Question (Click Edit)", // ชื่อเริ่มต้น
+                    answers: "Yes",
+                    rewardPoints: 10,
+                    order: nextOrder,
+                    inputType: 'BOOLEAN' // เริ่มต้นเป็น Yes/No
+                })
+            });
+            fetchSets();
+            showToast("Added new question");
+        }
+
         async function createSet() {
             const t = document.getElementById('newSetTitle').value; const d = document.getElementById('newSetDesc').value; const r = document.getElementById('newSetRoleId').value; const type = document.getElementById('newSetType').value;
             const res = await fetch('/api/quiz-sets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: t, description: d, completionRoleId: r, type: type }) });
             if (res.ok) { showToast("Created"); closeModal('createSetModal'); fetchSets(); } else showToast("Failed", false);
         }
-        function openEditSet(id) {
-            const s = allSets.find(x => x.id === id); document.getElementById('editSetId').value = id; document.getElementById('editSetTitle').value = s.title; document.getElementById('editSetDesc').value = s.description; document.getElementById('editSetRoleId').value = s.completionRoleId || ''; openModal('editSetModal');
-        }
-        async function saveSet() {
-            const id = document.getElementById('editSetId').value;
-            await fetch(`/api/quiz-sets/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: document.getElementById('editSetTitle').value, description: document.getElementById('editSetDesc').value, completionRoleId: document.getElementById('editSetRoleId').value }) });
-            closeModal('editSetModal'); fetchSets(); showToast("Updated");
-        }
+        function openEditSet(id) { const s = allSets.find(x => x.id === id); document.getElementById('editSetId').value = id; document.getElementById('editSetTitle').value = s.title; document.getElementById('editSetDesc').value = s.description; document.getElementById('editSetRoleId').value = s.completionRoleId || ''; openModal('editSetModal'); }
+        async function saveSet() { const id = document.getElementById('editSetId').value; await fetch(`/api/quiz-sets/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: document.getElementById('editSetTitle').value, description: document.getElementById('editSetDesc').value, completionRoleId: document.getElementById('editSetRoleId').value }) }); closeModal('editSetModal'); fetchSets(); showToast("Updated"); }
         async function delSet(id) { if (confirm("Delete?")) { await fetch(`/api/quiz-sets/${id}`, { method: 'DELETE' }); fetchSets(); showToast("Deleted"); } }
+        async function delQ(id) { if (confirm("Delete?")) { await fetch(`/api/quizzes/${id}`, { method: 'DELETE' }); fetchSets(); showToast("Deleted"); } }
 
-        // function addQ ไม่ต้องแก้ logic เพราะดึง .value จาก ID ซึ่ง select ก็มี .value เหมือนกัน
-        async function addQ(sid) {
-            const q = document.getElementById(`q_t_${sid}`).value; const a = document.getElementById(`q_a_${sid}`).value;
-            if (!q || !a) return showToast("Missing info", false);
-            await fetch('/api/quizzes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ setId: sid, question: q, answers: a, rewardPoints: document.getElementById(`q_r_${sid}`).value, order: document.getElementById(`q_o_${sid}`).value }) });
-            fetchSets(); showToast("Added");
-        }
+        // --- EDIT QUESTION (Dynamic) ---
         function openEditQ(qid, sid) {
             const s = allSets.find(x => x.id === sid); const q = s.questions.find(x => x.id === qid);
-            document.getElementById('editQId').value = qid; document.getElementById('editQOrder').value = q.order; document.getElementById('editQText').value = q.question; document.getElementById('editQReward').value = q.rewardPoints;
-            let currentAns = 'Yes'; try { const p = JSON.parse(q.answers); if (Array.isArray(p) && p.length > 0) currentAns = p[0]; else currentAns = q.answers; } catch (e) { currentAns = q.answers; }
-            currentAns = currentAns.charAt(0).toUpperCase() + currentAns.slice(1).toLowerCase();
-            const dd = document.getElementById('editQAns'); if (currentAns === 'No') dd.value = 'No'; else dd.value = 'Yes';
+            document.getElementById('editQId').value = q.id;
+            document.getElementById('editQOrder').value = q.order;
+            document.getElementById('editQText').value = q.question;
+            document.getElementById('editQReward').value = q.rewardPoints;
+
+            // Set Checkbox Manual Grading
+            document.getElementById('editQManual').checked = q.manualGrading || false;
+
+            document.getElementById('editQType').value = q.inputType || 'TEXT';
+            let opts = ''; try { if (q.options) opts = JSON.parse(q.options).join(','); } catch (e) { }
+            document.getElementById('editQOptions').value = opts;
+
+            renderAnswerInput();
+
+            let ansVal = q.answers;
+            try { const p = JSON.parse(q.answers); if (Array.isArray(p)) ansVal = p[0]; } catch (e) { }
+            setTimeout(() => {
+                const input = document.getElementById('dynamicAnsInput');
+                if (input) input.value = ansVal;
+            }, 50);
             openModal('editQModal');
         }
+
+        function renderAnswerInput() {
+            const type = document.getElementById('editQType').value;
+            const container = document.getElementById('answerInputContainer');
+            const divOptions = document.getElementById('divOptions');
+            container.innerHTML = '';
+
+            if (type === 'BOOLEAN') {
+                divOptions.style.display = 'none';
+                container.innerHTML = `<select id="dynamicAnsInput" style="width:100%;padding:10px;background:#222;border:1px solid #444;color:white;"><option value="Yes">Yes</option><option value="No">No</option></select>`;
+            } else if (type === 'CHOICE') {
+                divOptions.style.display = 'block';
+                const optsText = document.getElementById('editQOptions').value;
+                const opts = optsText.split(',').filter(x => x.trim() !== '');
+                let html = `<select id="dynamicAnsInput" style="width:100%;padding:10px;background:#222;border:1px solid #444;color:white;">`;
+                if (opts.length === 0) html += `<option value="">(Add options first)</option>`;
+                opts.forEach(o => html += `<option value="${o.trim()}">${o.trim()}</option>`);
+                html += `</select>`;
+                container.innerHTML = html;
+            } else {
+                divOptions.style.display = 'none';
+                container.innerHTML = `<input type="text" id="dynamicAnsInput" placeholder="Correct Answer Text">`;
+            }
+        }
+
         async function saveQuestion() {
             const id = document.getElementById('editQId').value;
-            const body = { order: document.getElementById('editQOrder').value, question: document.getElementById('editQText').value, answers: document.getElementById('editQAns').value, rewardPoints: document.getElementById('editQReward').value };
+            const type = document.getElementById('editQType').value;
+            const ansVal = document.getElementById('dynamicAnsInput').value;
+            let options = null;
+            if (type === 'CHOICE') options = JSON.stringify(document.getElementById('editQOptions').value.split(',').filter(x => x));
+
+            const body = {
+                order: document.getElementById('editQOrder').value,
+                question: document.getElementById('editQText').value,
+                answers: ansVal,
+                rewardPoints: document.getElementById('editQReward').value,
+                inputType: type,
+                options: options,
+                manualGrading: document.getElementById('editQManual').checked
+            };
             await fetch(`/api/quizzes/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
             closeModal('editQModal'); fetchSets(); showToast("Updated");
         }
-        async function delQ(id) { if (confirm("Delete?")) { await fetch(`/api/quizzes/${id}`, { method: 'DELETE' }); fetchSets(); showToast("Deleted"); } }
+
+        // --- MONITOR ---
+        let currentAnswers = [], pendingChanges = {};
+        async function openMonitor(setId) {
+            const r = await fetch(`/api/monitor/${setId}`); currentAnswers = await r.json(); pendingChanges = {};
+            const users = {}; currentAnswers.forEach(a => users[a.userId] = a.user.username);
+            const select = document.getElementById('monitorUserSelect'); select.innerHTML = '<option value="">-- Choose User --</option>';
+            Object.keys(users).forEach(uid => { select.innerHTML += `<option value="${uid}">${users[uid]}</option>` });
+            document.getElementById('monitorContent').innerHTML = '<p style="text-align:center;color:#888;">Please select a user.</p>';
+            openModal('monitorModal');
+        }
+        function renderMonitorTable() {
+            const userId = document.getElementById('monitorUserSelect').value; const container = document.getElementById('monitorContent');
+            if (!userId) { container.innerHTML = ''; return; }
+            const userAns = currentAnswers.filter(a => a.userId == userId);
+            let html = '<table style="width:100%;border-collapse:collapse;"><thead><tr style="border-bottom:1px solid #555;"><th>Question</th><th>Answer</th><th style="text-align:center;">Grade</th></tr></thead><tbody>';
+            userAns.forEach(a => {
+                let isPass = a.isCorrect === true; if (pendingChanges[a.id] !== undefined) isPass = pendingChanges[a.id];
+                const passClass = isPass ? 'opacity:1;transform:scale(1.2);color:#4caf50;' : 'opacity:0.3;';
+                const failClass = !isPass && (pendingChanges[a.id] !== undefined || a.isCorrect === false) ? 'opacity:1;transform:scale(1.2);color:#f44336;' : 'opacity:0.3;';
+                let dbStatus = ''; if (a.isCorrect === null) dbStatus = '<span style="font-size:0.7em;background:#e67e22;padding:2px 4px;border-radius:3px;">WAITING</span>';
+                else if (a.isCorrect) dbStatus = '<span style="font-size:0.7em;color:#4caf50;">(Passed)</span>';
+                else dbStatus = '<span style="font-size:0.7em;color:#f44336;">(Failed)</span>';
+                const manualIcon = a.question.manualGrading ? '✋' : '';
+                html += `<tr style="border-bottom:1px solid #333;"><td style="padding:10px;"><small style="color:#aaa;">${manualIcon} Q${a.question.order}</small><br>${a.question.question}</td><td style="padding:10px;">${a.answer}<br>${dbStatus}</td><td style="text-align:center;"><button onclick="stageGrade(${a.id},true)" style="background:none;border:none;cursor:pointer;font-size:1.5em;${passClass}">✅</button><button onclick="stageGrade(${a.id},false)" style="background:none;border:none;cursor:pointer;font-size:1.5em;${failClass}">❌</button></td></tr>`;
+            });
+            html += '</tbody></table>'; container.innerHTML = html;
+        }
+        function stageGrade(ansId, isCorrect) { pendingChanges[ansId] = isCorrect; renderMonitorTable(); }
+        async function saveGrades() {
+            const p = [], ids = Object.keys(pendingChanges); if (ids.length === 0) return showToast("No changes", false);
+            ids.forEach(id => { p.push(fetch(`/api/grade/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isCorrect: pendingChanges[id] }) })); });
+            await Promise.all(p); ids.forEach(id => { const a = currentAnswers.find(x => x.id == id); if (a) a.isCorrect = pendingChanges[id]; });
+            pendingChanges = {}; renderMonitorTable(); showToast(`Saved ${ids.length} changes!`);
+        }
 
         function openModal(id) { document.getElementById(id).style.display = 'block' }
         function closeModal(id) { document.getElementById(id).style.display = 'none' }

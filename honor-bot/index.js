@@ -1,4 +1,5 @@
-require('dotenv').config();
+require('dotenv').config({ path: '../.env' });
+const path = require('path');
 const { Client, GatewayIntentBits, EmbedBuilder, REST, Routes, SlashCommandBuilder } = require('discord.js');
 const { PrismaClient } = require('@prisma/client');
 const express = require('express');
@@ -121,10 +122,113 @@ async function updateLeaderboard() {
 // ===========================
 
 app.get('/api/download-db', requireAuth, (req, res) => {
-    const dbPath = path.join(__dirname, '../prisma/dev.db'); // ถอยกลับไป folder prisma
+    const fs = require('fs');
+    const path = require('path');
+
+    // รายชื่อ Path ที่เป็นไปได้ทั้งหมด (เรียงตามลำดับความน่าจะเป็น)
+    const possiblePaths = [
+        '/app/prisma/dev.db',                      // 1. Path มาตรฐานใน Docker (สำคัญสุด)
+        path.join(process.cwd(), 'prisma/dev.db'), // 2. Path จากจุดที่รันคำสั่ง
+        path.join(__dirname, '../prisma/dev.db'),  // 3. Path ถอยหลังจากโฟลเดอร์ honor-bot
+        path.join(__dirname, 'prisma/dev.db')      // 4. เผื่อมันอยู่ในโฟลเดอร์เดียวกัน
+    ];
+
+    let dbPath = null;
+
+    // 🔍 วนลูปหาไฟล์ว่ามีอยู่จริงที่ไหน
+    console.log("🔍 Searching for database file...");
+    for (const p of possiblePaths) {
+        if (fs.existsSync(p)) {
+            dbPath = p;
+            console.log(`✅ FOUND database at: ${dbPath}`);
+            break; // เจอแล้วหยุดหา
+        } else {
+            console.log(`❌ Not found at: ${p}`);
+        }
+    }
+
+    // ถ้าหาไม่เจอเลยสักที่
+    if (!dbPath) {
+        console.error("🔥 CRITICAL: Could not find database file in any known location.");
+        return res.status(500).send("Database file not found on server. Check server logs.");
+    }
+
+    // เจอแล้วสั่งโหลดเลย
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    res.download(dbPath, `backup-${timestamp}.db`);
-    sendLog('💾 Backup', 'Admin downloaded database.', 0x3498DB);
+    res.download(dbPath, `backup-${timestamp}.db`, (err) => {
+        if (err) {
+            console.error("❌ Download Error:", err);
+            if (!res.headersSent) res.status(500).send("Error downloading file.");
+        } else {
+            sendLog('💾 Database Backup', 'Admin downloaded database backup.', 0x3498DB);
+        }
+    });
+});
+
+// ✅ [NEW] ดึงข้อมูลการตอบของผู้ใช้ใน Quiz Set นั้นๆ
+app.get('/api/monitor/:setId', requireAuth, async (req, res) => {
+    const { setId } = req.params;
+    try {
+        // ดึงคำตอบทั้งหมด พร้อมข้อมูล User และ Question
+        const answers = await prisma.userAnswer.findMany({
+            where: { question: { setId: parseInt(setId) } },
+            include: {
+                user: true,
+                question: true
+            },
+            orderBy: { userId: 'asc' } // เรียงตามคน
+        });
+        res.json(answers);
+    } catch (e) { res.status(500).json({ error: "Fetch answers failed" }); }
+});
+
+// ✅ [UPDATE] ตรวจคำตอบ (ตัด/เพิ่มแต้มทันที)
+app.put('/api/grade/:ansId', requireAuth, async (req, res) => {
+    const { ansId } = req.params;
+    const { isCorrect } = req.body; // true = ให้คะแนน, false = ปรับตก
+
+    try {
+        // 1. ดึงข้อมูลเก่าเพื่อดูว่าเคยตรวจไปหรือยัง (กันปั๊มแต้ม)
+        const oldAns = await prisma.userAnswer.findUnique({
+            where: { id: parseInt(ansId) },
+            include: { question: true }
+        });
+
+        if (!oldAns) return res.status(404).json({ error: "Answer not found" });
+
+        const points = oldAns.question.rewardPoints;
+        const userId = oldAns.userId;
+
+        // 2. Logic คำนวณแต้ม (Differential Update)
+        // ถ้าของเดิม 'ถูก' แล้วแก้เป็น 'ผิด' -> ต้องลบแต้ม
+        // ถ้าของเดิม 'ผิด/รอตรวจ' แล้วแก้เป็น 'ถูก' -> ต้องเพิ่มแต้ม
+
+        let soulChange = 0;
+        const wasCorrect = oldAns.isCorrect === true; // true only
+        const willBeCorrect = isCorrect === true;
+
+        if (!wasCorrect && willBeCorrect) soulChange = points;   // +Points
+        if (wasCorrect && !willBeCorrect) soulChange = -points;  // -Points
+
+        // 3. อัปเดตสถานะคำตอบ
+        await prisma.userAnswer.update({
+            where: { id: parseInt(ansId) },
+            data: { isCorrect }
+        });
+
+        // 4. อัปเดตแต้ม User (ถ้ามีการเปลี่ยนแปลง)
+        if (soulChange !== 0) {
+            await prisma.user.update({
+                where: { id: userId },
+                data: { souls: { increment: soulChange } }
+            });
+        }
+
+        res.json({ success: true, soulChange });
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ error: "Grading failed" });
+    }
 });
 
 // --- AUTH ---
@@ -188,13 +292,13 @@ app.post('/api/quiz-sets', requireAuth, async (req, res) => {
                 questions.push({
                     setId: newSet.id,
                     order: i,
-                    question: `Question ${i}`, // ข้อความ default
-                    answers: JSON.stringify(['Yes']), // default Yes
-                    rewardPoints: 100,
+                    question: `Question ${i}`,
+                    answers: JSON.stringify(['Yes']),
+                    inputType: 'BOOLEAN', // ✅ Default Type: Yes/No
+                    rewardPoints: 10,     // ✅ Default Reward: 10
                     isActive: true
                 });
             }
-            // ใช้ createMany เพื่อความเร็ว
             await prisma.quizQuestion.createMany({ data: questions });
         }
 
@@ -206,32 +310,37 @@ app.post('/api/quiz-sets', requireAuth, async (req, res) => {
     }
 });
 
-app.put('/api/quiz-sets/:id', requireAuth, async (req, res) => {
+// ✅ [UPDATE] แก้ไขคำถาม (รองรับ manualGrading)
+app.put('/api/quizzes/:id', requireAuth, async (req, res) => {
     const { id } = req.params;
-    const { title, description, status, completionRoleId } = req.body;
+    const { question, answers, rewardPoints, order, inputType, options, manualGrading } = req.body;
 
     try {
-        // ✅ [NEW] Validation Check
-        if (status === 'OPEN') {
-            const checkSet = await prisma.quizSet.findUnique({
-                where: { id: parseInt(id) },
-                include: { questions: true }
-            });
+        const updateData = {
+            question,
+            rewardPoints: parseInt(rewardPoints),
+            order: parseInt(order),
+            inputType: inputType || 'TEXT',
+            options: options || null,
+            manualGrading: manualGrading || false // ✅ บันทึกค่า
+        };
 
-            if (checkSet.type === 'BINGO' && checkSet.questions.length !== 9) {
-                return res.status(400).json({ error: `Bingo requires exactly 9 questions (current: ${checkSet.questions.length})` });
-            }
+        if (answers) {
+            const ansArray = answers.split(',').map(a => a.trim());
+            updateData.answers = JSON.stringify(ansArray);
         }
 
-        const updated = await prisma.quizSet.update({
-            where: { id: parseInt(id) },
-            data: { title, description, status, completionRoleId }
-        });
+        const updated = await prisma.quizQuestion.update({ where: { id: parseInt(id) }, data: updateData });
         res.json(updated);
-    } catch (e) {
-        console.error(e);
-        res.status(500).json({ error: "Update failed" });
-    }
+    } catch (e) { res.status(500).json({ error: "Update failed" }); }
+});
+
+app.delete('/api/quizzes/:id', requireAuth, async (req, res) => {
+    try {
+        await prisma.userAnswer.deleteMany({ where: { questionId: parseInt(req.params.id) } });
+        await prisma.quizQuestion.delete({ where: { id: parseInt(req.params.id) } });
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: "Delete Q failed" }); }
 });
 
 app.delete('/api/quiz-sets/:id', requireAuth, async (req, res) => {
@@ -262,24 +371,6 @@ app.post('/api/quizzes', requireAuth, async (req, res) => {
         });
         res.json(newQ);
     } catch (e) { res.status(500).json({ error: "Create Q failed" }); }
-});
-
-app.put('/api/quizzes/:id', requireAuth, async (req, res) => {
-    const { question, answers, rewardPoints, order } = req.body;
-    const data = { question, rewardPoints: parseInt(rewardPoints), order: parseInt(order) };
-    if (answers) data.answers = JSON.stringify(answers.split(',').map(a => a.trim()));
-    try {
-        await prisma.quizQuestion.update({ where: { id: parseInt(req.params.id) }, data });
-        res.json({ success: true });
-    } catch (e) { res.status(500).json({ error: "Update Q failed" }); }
-});
-
-app.delete('/api/quizzes/:id', requireAuth, async (req, res) => {
-    try {
-        await prisma.userAnswer.deleteMany({ where: { questionId: parseInt(req.params.id) } });
-        await prisma.quizQuestion.delete({ where: { id: parseInt(req.params.id) } });
-        res.json({ success: true });
-    } catch (e) { res.status(500).json({ error: "Delete Q failed" }); }
 });
 
 // --- DISCORD BOT ---

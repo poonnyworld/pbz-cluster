@@ -81,13 +81,15 @@ model QuizQuestion {
   set          QuizSet?      @relation(fields: [setId], references: [id])
   order        Int           @default(0)
   question     String
+  
+  inputType    String        @default("TEXT") // "BOOLEAN", "CHOICE", "TEXT"
+  options      String?       // เก็บตัวเลือก JSON เช่น '["Jan","Feb",...]'
+  manualGrading Boolean  @default(false) // ✅ เพิ่ม: เปิดโหมดตรวจเอง
+
   answers      String        
   rewardPoints Int           @default(100)
   isActive     Boolean       @default(true)
-  
-  // ✅ Relation ถูกต้อง: ชี้ไปหา UserAnswer
   userAnswers  UserAnswer[]  
-  
   createdAt    DateTime      @default(now())
 }
 
@@ -102,7 +104,7 @@ model UserAnswer {
   question   QuizQuestion @relation(fields: [questionId], references: [id])
   
   answer     String       // คำตอบที่ user พิมพ์
-  isCorrect  Boolean      @default(false)
+  isCorrect  Boolean?     @default(false) // ✅ แก้: ใส่ ? เพื่อให้เป็น null (Pending) ได้
   answeredAt DateTime     @default(now())
 
   @@unique([userId, questionId])
