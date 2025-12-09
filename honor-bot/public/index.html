@@ -296,10 +296,22 @@
             <span class="close" onclick="closeModal('editQModal')">&times;</span>
             <h3>Edit Question</h3>
             <input type="hidden" id="editQId">
-            <div style="display:flex;gap:10px;"><input type="number" id="editQOrder" placeholder="Order"><input
-                    type="number" id="editQReward" placeholder="Reward"></div>
+            <div style="display:flex; gap:10px;">
+                <div style="flex:1"><label>Order</label><input type="number" id="editQOrder" placeholder="Order"></div>
+                <div style="flex:1"><label>Reward</label><input type="number" id="editQReward" placeholder="Reward">
+                </div>
+            </div>
+
+            <label>Question</label>
             <input type="text" id="editQText" placeholder="Question">
-            <input type="text" id="editQAns" placeholder="Answers (a,b)">
+
+            <label>Correct Answer</label>
+            <select id="editQAns"
+                style="width:100%; padding:10px; background:#222; border:1px solid #444; color:white; margin-bottom:10px;">
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+            </select>
+
             <button class="btn-add" onclick="saveQuestion()">Save</button>
         </div>
     </div>
@@ -405,14 +417,62 @@
             fetchSets(); showToast("Added");
         }
         function openEditQ(qid, sid) {
-            const q = allSets.find(x => x.id === sid).questions.find(x => x.id === qid);
-            document.getElementById('editQId').value = qid; document.getElementById('editQOrder').value = q.order; document.getElementById('editQText').value = q.question;
-            try { document.getElementById('editQAns').value = JSON.parse(q.answers).join(', '); } catch (e) { document.getElementById('editQAns').value = q.answers }
-            document.getElementById('editQReward').value = q.rewardPoints; openModal('editQModal');
+            // 1. หาข้อมูล Set และ Question
+            const s = allSets.find(x => x.id === sid);
+            const q = s.questions.find(x => x.id === qid);
+
+            // 2. เติมข้อมูลลงฟอร์ม
+            document.getElementById('editQId').value = q.id;
+            document.getElementById('editQOrder').value = q.order;
+            document.getElementById('editQText').value = q.question;
+            document.getElementById('editQReward').value = q.rewardPoints;
+
+            // 3. ✅ จัดการเรื่องคำตอบ (แปลงจาก JSON เป็นค่า Yes/No)
+            let currentAns = 'Yes'; // ค่า Default
+            try {
+                // ข้อมูลใน DB อาจเป็น ["Yes"] หรือ "Yes"
+                const parsed = JSON.parse(q.answers);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    currentAns = parsed[0]; // เอาตัวแรก
+                } else {
+                    currentAns = q.answers;
+                }
+            } catch (e) {
+                currentAns = q.answers;
+            }
+
+            // จัด Format ให้ตัวแรกพิมพ์ใหญ่ (Yes/No) เพื่อให้ตรงกับ value ใน option
+            currentAns = currentAns.charAt(0).toUpperCase() + currentAns.slice(1).toLowerCase();
+
+            // เซ็ตค่าให้ Dropdown
+            const dropdown = document.getElementById('editQAns');
+            if (currentAns === 'No') dropdown.value = 'No';
+            else dropdown.value = 'Yes';
+
+            openModal('editQModal');
         }
         async function saveQuestion() {
-            await fetch(`/api/quizzes/${document.getElementById('editQId').value}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: document.getElementById('editQText').value, answers: document.getElementById('editQAns').value, rewardPoints: document.getElementById('editQReward').value, order: document.getElementById('editQOrder').value }) });
-            closeModal('editQModal'); fetchSets(); showToast("Updated");
+            // 1. ดึง ID ออกมา
+            const id = document.getElementById('editQId').value;
+
+            // 2. สร้าง Object ข้อมูลที่จะส่ง
+            const body = {
+                order: document.getElementById('editQOrder').value,
+                question: document.getElementById('editQText').value,
+                answers: document.getElementById('editQAns').value, // ✅ ดึงค่า Yes/No จาก Dropdown ได้เลย
+                rewardPoints: document.getElementById('editQReward').value
+            };
+
+            // 3. ส่งข้อมูล (ใช้ตัวแปร body ที่สร้างไว้ด้านบน)
+            await fetch(`/api/quizzes/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body) // 👈 แก้ตรงนี้: ใช้ตัวแปร body แทนการพิมพ์ใหม่
+            });
+
+            closeModal('editQModal');
+            fetchSets();
+            showToast("Updated");
         }
         async function delQ(id) { if (confirm("Delete?")) { await fetch(`/api/quizzes/${id}`, { method: 'DELETE' }); fetchSets(); showToast("Deleted"); } }
 
