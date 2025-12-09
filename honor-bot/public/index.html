@@ -267,6 +267,13 @@
             <h3>Create Quiz Set</h3>
             <input type="text" id="newSetTitle" placeholder="Title">
             <input type="text" id="newSetDesc" placeholder="Description">
+
+            <label style="display:block; margin-top:10px; color:#aaa;">Quiz Type:</label>
+            <select id="newSetType" style="margin-bottom:15px;">
+                <option value="BINGO" selected>🎯 Bingo Prediction (Yes/No)</option>
+                <option value="STANDARD">📝 Standard Quiz (Text Input)</option>
+            </select>
+
             <input type="text" id="newSetRoleId" placeholder="Reward Role ID (Optional)">
             <button class="btn-add" onclick="createSet()">Create</button>
         </div>
@@ -351,7 +358,12 @@
                 c.innerHTML += `
                 <div style="background:rgba(255,255,255,0.05);padding:15px;margin-bottom:15px;border-radius:4px;">
                     <div style="display:flex;justify-content:space-between;border-bottom:1px solid #444;padding-bottom:10px;margin-bottom:10px;">
-                        <div><h3 style="margin:0;display:inline;">${s.title}</h3><span class="status-badge status-${s.status}">${s.status}</span><div style="color:#888;font-size:0.9em;">${s.description || ''}</div></div>
+                        <div>
+                            <h3 style="margin:0;display:inline;">${s.title}</h3>
+                            <span class="status-badge status-${s.status}">${s.status}</span>
+                            <span style="background:${s.type === 'BINGO' ? '#9b59b6' : '#34495e'};padding:2px 6px;border-radius:3px;font-size:0.75em;margin-left:5px;">${s.type}</span>
+                            <div style="color:#888;font-size:0.9em;">${s.description || ''}</div>
+                        </div>
                         <div><button class="btn-icon" onclick="openEditSet(${s.id})">📝</button><button class="btn-icon" onclick="delSet(${s.id})">🗑️</button></div>
                     </div>
                     <div style="background:rgba(0,0,0,0.2);padding:10px;border-radius:4px;display:flex;gap:5px;">
@@ -363,9 +375,17 @@
         }
 
         // --- ACTIONS ---
+        // หาฟังก์ชัน createSet แล้วแก้บรรทัดที่ส่ง fetch
         async function createSet() {
-            const t = document.getElementById('newSetTitle').value; const d = document.getElementById('newSetDesc').value; const r = document.getElementById('newSetRoleId').value;
-            const res = await fetch('/api/quiz-sets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: t, description: d, completionRoleId: r }) });
+            const t = document.getElementById('newSetTitle').value;
+            const d = document.getElementById('newSetDesc').value;
+            const r = document.getElementById('newSetRoleId').value;
+            // ✅ รับค่า Type
+            const type = document.getElementById('newSetType').value;
+
+            // ✅ ส่ง type ไปใน body
+            const res = await fetch('/api/quiz-sets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: t, description: d, completionRoleId: r, type: type }) });
+
             if (res.ok) { showToast("Created"); closeModal('createSetModal'); fetchSets(); } else showToast("Failed", false);
         }
         function openEditSet(id) {

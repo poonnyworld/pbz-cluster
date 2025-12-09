@@ -63,6 +63,9 @@ model QuizSet {
   description    String?
   status         String         @default("DRAFT") 
 
+  // ✅ เพิ่มบรรทัดนี้: ประเภทของ Quiz (STANDARD หรือ BINGO)
+  type           String         @default("BINGO")
+
   // ✅ เพิ่ม: เก็บ ID ของ Role ที่จะแจก (ใส่เป็น String เพราะ Discord ID ยาว)
   completionRoleId String?
   

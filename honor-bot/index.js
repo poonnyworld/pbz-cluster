@@ -170,13 +170,14 @@ app.get('/api/quiz-sets', requireAuth, async (req, res) => {
 
 // ✅ Create Set (แก้ให้รับ completionRoleId ชัดเจน)
 app.post('/api/quiz-sets', requireAuth, async (req, res) => {
-    const { title, description, completionRoleId } = req.body;
+    const { title, description, completionRoleId, type } = req.body;
     try {
         const newSet = await prisma.quizSet.create({
             data: {
                 title,
                 description,
-                completionRoleId: completionRoleId || null // แปลงว่างเป็น null
+                completionRoleId: completionRoleId || null, // แปลงว่างเป็น null
+                type: type || 'BINGO'
             }
         });
         sendLog('📚 Set Created', `**${title}** (Role: ${completionRoleId || 'None'})`, 0x57F287);

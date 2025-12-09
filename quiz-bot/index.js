@@ -9,9 +9,14 @@ require('dotenv').config();
 const TOKEN = process.env.QUIZ_BOT_TOKEN;
 const CLIENT_ID = process.env.QUIZ_BOT_APP_ID;
 const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID; // ✅ รับค่าห้อง Log
+const BINGO_CHANNEL_ID = process.env.BINGO_CHANNEL_ID; // ✅ รับ ID ห้อง Bingo
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 const prisma = new PrismaClient();
+
+// ✅ Memory เก็บสถานะการตอบคำถามชั่วคราว (Key: userId_setId)
+// Value: { currentOrder: 1, answers: [ {qId: 1, qText:'..', answer:'Yes', order:1}, ... ] }
+const bingoSessions = new Map();
 
 // --- HELPER: Send Log ---
 async function sendLog(title, description, color = 0x0099FF) {
@@ -23,6 +28,33 @@ async function sendLog(title, description, color = 0x0099FF) {
             await channel.send({ embeds: [embed] });
         }
     } catch (e) { console.error("Log Error:", e.message); }
+}
+
+// --- HELPER: Generate Bingo Grid ---
+function generateBingoGrid(answersList) {
+    const sorted = answersList.sort((a, b) => a.order - b.order);
+    let gridStr = "```\n+=================+=================+=================+\n";
+
+    for (let i = 0; i < sorted.length; i++) {
+        const q = sorted[i];
+        // จัด format ให้สวยงาม (ตัดคำถามถ้ายาวเกิน)
+        let qShort = q.qText.length > 12 ? q.qText.substring(0, 12) + '..' : q.qText.padEnd(14);
+        let cellContent = `Q${q.order}:${q.answer.padEnd(3)} | ${qShort}`;
+
+        gridStr += `| ${cellContent} `;
+
+        // ขึ้นบรรทัดใหม่ทุกๆ 3 ช่อง หรือเมื่อจบตาราง
+        if ((i + 1) % 3 === 0 || i === sorted.length - 1) {
+            if (i === sorted.length - 1 && (i + 1) % 3 !== 0) {
+                // เติมช่องว่างถ้าแถวสุดท้ายไม่ครบ 3
+                const remaining = 3 - ((i + 1) % 3);
+                for (let j = 0; j < remaining; j++) gridStr += `|                 `;
+            }
+            gridStr += "|\n+=================+=================+=================+\n";
+        }
+    }
+    gridStr += "```";
+    return gridStr;
 }
 
 const commands = [
@@ -59,6 +91,7 @@ async function createPanelPayload(setId) {
 
     const embed = new EmbedBuilder().setTitle(`📜 ${set.title}`);
     const row = new ActionRowBuilder();
+    const typeText = set.type === 'BINGO' ? '🎯 Bingo Prediction' : '📝 Standard Quiz';
 
     if (set.status === 'OPEN') {
         embed.setColor(0xFFD700)
@@ -71,18 +104,15 @@ async function createPanelPayload(setId) {
         row.addComponents(new ButtonBuilder().setCustomId(`disabled_1`).setLabel('⛔ ปิดรับคำตอบ').setStyle(ButtonStyle.Secondary).setDisabled(true));
     }
     else if (set.status === 'REVEALED') {
+        // (ส่วน REVEALED ใช้ Logic เดิมได้ หรือปรับให้เหมาะกับ Bingo ก็ได้ ในที่นี้คงเดิมไว้ก่อน)
         const answerKey = set.questions.map(q => {
             let ans = q.answers; try { ans = JSON.parse(q.answers)[0]; } catch (e) { }
             return `**Q${q.order}.** ${q.question}\n✅ เฉลย: **${ans}** (${q.rewardPoints} Souls)`;
         }).join('\n\n');
 
-        let desc = `🎉 **ประกาศผลคะแนน!**\n\n${answerKey}\n\n👇 **กดปุ่มด้านล่างเพื่อดูคะแนนของคุณ**`;
-        if (set.completionRoleId) {
-            desc += `\n\n🏆 **Special Reward:** ผู้ที่ตอบถูกครบทุกข้อจะได้รับยศ <@&${set.completionRoleId}>`;
-        }
-
+        let desc = `🎉 **เฉลยผลการทำนาย!**\n\n${answerKey}`;
+        if (set.completionRoleId) desc += `\n\n🏆 **Special Reward:** ผู้ที่ทายถูกครบทุกข้อจะได้รับยศ <@&${set.completionRoleId}>`;
         embed.setColor(0x57F287).setDescription(desc);
-        row.addComponents(new ButtonBuilder().setCustomId(`check_result_${setId}`).setLabel('🏆 ดูคะแนนของฉัน').setStyle(ButtonStyle.Primary));
     }
     else {
         embed.setColor(0x95A5A6).setDescription('⏳ กิจกรรมยังไม่พร้อม (Draft Mode)');
@@ -181,102 +211,216 @@ client.on('interactionCreate', async interaction => {
         }
     }
 
-    // ---------------------------------------------------------
-    // 2. USER BUTTONS
-    // ---------------------------------------------------------
+    // ---------------------------------
+    // 2. USER INTERACTIONS (BINGO FLOW)
+    // ---------------------------------
     if (interaction.isButton()) {
-        // ... (Start Quiz & Answer Button เหมือนเดิม) ...
-        if (interaction.customId.startsWith('start_quiz_')) {
-            const setId = parseInt(interaction.customId.split('_')[2]);
+        const customId = interaction.customId;
+        const userId = interaction.user.id;
+
+        // ▶️ ปุ่มเริ่ม: Start Quiz / Bingo
+        if (customId.startsWith('start_quiz_')) {
+            const setId = parseInt(customId.split('_')[2]);
             const set = await prisma.quizSet.findUnique({ where: { id: setId } });
-            if (set.status !== 'OPEN') return interaction.reply({ content: '⛔ ปิดรับคำตอบแล้ว', ephemeral: true });
-            const nextQ = await getNextQuestion(interaction.user.id, setId);
-            if (!nextQ) return interaction.reply({ content: '✅ ส่งคำตอบครบแล้ว รอฟังผลนะ!', ephemeral: true });
-            const embed = new EmbedBuilder().setColor(0x0099FF).setTitle(`📝 ข้อที่ ${nextQ.order}`).setDescription(`**${nextQ.question}**`).setFooter({ text: 'กดปุ่ม Answer เพื่อตอบ' });
-            const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`ans_btn_${nextQ.id}`).setLabel('✍️ Answer').setStyle(ButtonStyle.Primary));
-            await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
+
+            if (set.status !== 'OPEN') return interaction.reply({ content: '⛔ กิจกรรมปิดแล้ว', ephemeral: true });
+
+            // เช็คว่าเคยส่งไปแล้วหรือยัง
+            const existingAns = await prisma.userAnswer.findFirst({ where: { userId, question: { setId } } });
+            if (existingAns) return interaction.reply({ content: '✅ คุณส่งใบทำนายไปแล้ว!', ephemeral: true });
+
+            // เริ่ม Session ใหม่ใน Memory
+            bingoSessions.set(`${userId}_${setId}`, { currentOrder: 1, answers: [] });
+
+            // ส่งคำถามข้อแรก
+            await sendNextBingoQuestion(interaction, setId, 1);
         }
-        if (interaction.customId.startsWith('ans_btn_')) {
-            const qId = interaction.customId.split('_')[2];
-            const modal = new ModalBuilder().setCustomId(`sub_ans_${qId}`).setTitle('ส่งคำตอบ');
-            const input = new TextInputBuilder().setCustomId('ans_input').setLabel('คำตอบของคุณ').setStyle(TextInputStyle.Short).setRequired(true);
-            modal.addComponents(new ActionRowBuilder().addComponents(input));
-            await interaction.showModal(modal);
-        }
 
-        // ✅ [UPDATE] Check Result Button
-        if (interaction.customId.startsWith('check_result_')) {
-            const setId = parseInt(interaction.customId.split('_')[2]);
+        // 🆗✖️ ปุ่มตอบ: Yes / No
+        if (customId.startsWith('bingo_yes_') || customId.startsWith('bingo_no_')) {
+            const [_, choice, qIdStr, setIdStr] = customId.split('_');
+            const qId = parseInt(qIdStr);
+            const setId = parseInt(setIdStr);
+            const answerValue = choice === 'yes' ? 'Yes' : 'No';
+            const sessionKey = `${userId}_${setId}`;
+            const session = bingoSessions.get(sessionKey);
 
-            // ดึงข้อมูล Set เพื่อเอา Role ID
-            const set = await prisma.quizSet.findUnique({ where: { id: setId }, include: { questions: true } });
+            if (!session) return interaction.reply({ content: '❌ Session หมดอายุ กรุณาเริ่มใหม่', ephemeral: true });
 
-            const myAnswers = await prisma.userAnswer.findMany({
-                where: { userId: interaction.user.id, question: { setId } },
-                include: { question: true },
-                orderBy: { question: { order: 'asc' } }
+            // บันทึกคำตอบลง Memory
+            const questionData = await prisma.quizQuestion.findUnique({ where: { id: qId } });
+            session.answers.push({
+                qId: qId,
+                qText: questionData.question,
+                answer: answerValue,
+                order: questionData.order,
+                reward: questionData.rewardPoints
             });
+            session.currentOrder++;
+            bingoSessions.set(sessionKey, session);
 
-            if (myAnswers.length === 0) return interaction.reply({ content: 'ไม่พบข้อมูลการเล่น', ephemeral: true });
+            // ไปข้อถัดไป หรือ หน้าสรุป
+            await sendNextBingoQuestion(interaction, setId, session.currentOrder);
+        }
 
-            let score = 0;
-            let correctCount = 0;
-            const details = myAnswers.map(ans => {
-                if (ans.isCorrect) { score += ans.question.rewardPoints; correctCount++; }
-                return `**Q${ans.question.order}:** ${ans.isCorrect ? '✅' : '❌'} (ตอบ: ${ans.answer})`;
-            }).join('\n');
+        // ↩️ ปุ่มแก้ไข: Edit Answers (ล้าง Memory เริ่มใหม่)
+        if (customId.startsWith('bingo_edit_')) {
+            const setId = parseInt(customId.split('_')[2]);
+            const sessionKey = `${userId}_${setId}`;
+            // รีเซ็ต session
+            bingoSessions.set(sessionKey, { currentOrder: 1, answers: [] });
+            await interaction.update({ content: '🔄 รีเซ็ตคำตอบแล้ว เริ่มข้อ 1 ใหม่ครับ', embeds: [], components: [] });
+            // ส่งข้อ 1 ใหม่ (ใช้ followUp เพราะ update ไปแล้ว)
+            await sendNextBingoQuestion(interaction, setId, 1, true);
+        }
 
-            let desc = `คุณได้รับรางวัลรวม: **${score} Souls**\n\n${details}`;
+        // ✅ ปุ่มยืนยัน: Confirm Submission
+        if (customId.startsWith('bingo_confirm_')) {
+            await interaction.deferUpdate(); // กัน timeout
+            const setId = parseInt(customId.split('_')[2]);
+            const sessionKey = `${userId}_${setId}`;
+            const session = bingoSessions.get(sessionKey);
 
-            // ✅ เพิ่ม Feedback ว่าได้รับ Role หรือไม่
-            if (set.completionRoleId && correctCount === set.questions.length) {
-                desc += `\n\n🎁 **PERFECT SCORE!**\nคุณได้รับยศพิเศษ <@&${set.completionRoleId}> แล้ว!`;
+            if (!session || session.answers.length === 0) {
+                return interaction.editReply({ content: '❌ เกิดข้อผิดพลาด กรุณาเริ่มใหม่', embeds: [], components: [] });
             }
 
-            const embed = new EmbedBuilder().setColor(0xF1C40F).setTitle(`🏆 ผลคะแนนของคุณ`).setDescription(desc);
-            await interaction.reply({ embeds: [embed], ephemeral: true });
+            // 1. บันทึกลง Database จริง
+            await prisma.user.upsert({ where: { id: userId }, update: { username: interaction.user.username }, create: { id: userId, username: interaction.user.username, souls: 0 } });
+
+            for (const ans of session.answers) {
+                // เช็คซ้ำอีกทีกันเหนียว
+                const exists = await prisma.userAnswer.findUnique({ where: { userId_questionId: { userId, questionId: ans.qId } } });
+                if (!exists) {
+                    await prisma.userAnswer.create({ data: { userId, questionId: ans.qId, answer: ans.answer, isCorrect: false } });
+                }
+            }
+
+            // 2. สร้าง Bingo Grid
+            const bingoGrid = generateBingoGrid(session.answers);
+
+            // 3. ส่งเข้าห้อง Bingo Channel
+            if (BINGO_CHANNEL_ID) {
+                const bingoEmbed = new EmbedBuilder()
+                    .setTitle(`🎟️ Bingo Submission: ${interaction.user.tag}`)
+                    .setDescription(`Set ID: ${setId}\n${bingoGrid}`)
+                    .setColor(0x2ECC71)
+                    .setTimestamp();
+                await sendLog(null, null, null, BINGO_CHANNEL_ID, bingoEmbed); // ใช้ helper ส่ง embed
+            }
+
+            // 4. แจ้งเตือน User และลบ Session
+            const successEmbed = new EmbedBuilder()
+                .setTitle('✅ ส่งใบทำนายเรียบร้อย!')
+                .setDescription(`ระบบได้บันทึกใบ Bingo ของคุณแล้ว:\n${bingoGrid}\n\nรอลุ้นผลประกาศนะครับ!`)
+                .setColor(0x57F287);
+
+            await interaction.editReply({ embeds: [successEmbed], components: [] });
+            bingoSessions.delete(sessionKey); // เคลียร์ Memory
+            sendLog('🎟️ Bingo Submitted', `${interaction.user.tag} submitted for Set ${setId}`, 0x2ECC71);
         }
     }
 
     // ---------------------------------------------------------
     // 3. MODAL SUBMIT (ส่งคำตอบ)
     // ---------------------------------------------------------
-    if (interaction.isModalSubmit() && interaction.customId.startsWith('sub_ans_')) {
-        const qId = parseInt(interaction.customId.split('_')[2]);
-        const answerText = interaction.fields.getTextInputValue('ans_input').trim();
+    // if (interaction.isModalSubmit() && interaction.customId.startsWith('sub_ans_')) {
+    //     const qId = parseInt(interaction.customId.split('_')[2]);
+    //     const answerText = interaction.fields.getTextInputValue('ans_input').trim();
 
-        // ✅ LOG: บันทึกว่า User ตอบอะไร
-        sendLog('📝 User Answered', `**User:** ${interaction.user.tag}\n**QID:** ${qId}\n**Ans:** ${answerText}`, 0x00FFFF);
+    //     // ✅ LOG: บันทึกว่า User ตอบอะไร
+    //     sendLog('📝 User Answered', `**User:** ${interaction.user.tag}\n**QID:** ${qId}\n**Ans:** ${answerText}`, 0x00FFFF);
 
-        await prisma.user.upsert({
-            where: { id: interaction.user.id },
-            update: { username: interaction.user.username },
-            create: { id: interaction.user.id, username: interaction.user.username, souls: 0 }
-        });
+    //     await prisma.user.upsert({
+    //         where: { id: interaction.user.id },
+    //         update: { username: interaction.user.username },
+    //         create: { id: interaction.user.id, username: interaction.user.username, souls: 0 }
+    //     });
 
-        const q = await prisma.quizQuestion.findUnique({ where: { id: qId } });
-        const exists = await prisma.userAnswer.findUnique({ where: { userId_questionId: { userId: interaction.user.id, questionId: qId } } });
+    //     const q = await prisma.quizQuestion.findUnique({ where: { id: qId } });
+    //     const exists = await prisma.userAnswer.findUnique({ where: { userId_questionId: { userId: interaction.user.id, questionId: qId } } });
 
-        if (!exists) {
-            await prisma.userAnswer.create({ data: { userId: interaction.user.id, questionId: qId, answer: answerText, isCorrect: false } });
-        }
+    //     if (!exists) {
+    //         await prisma.userAnswer.create({ data: { userId: interaction.user.id, questionId: qId, answer: answerText, isCorrect: false } });
+    //     }
 
-        const nextQ = await getNextQuestion(interaction.user.id, q.setId);
-        if (nextQ) {
-            const embed = new EmbedBuilder().setColor(0x0099FF).setTitle(`📝 ข้อที่ ${nextQ.order}`).setDescription(`**${nextQ.question}**`).setFooter({ text: 'บันทึกแล้ว! ลุยข้อต่อไป' });
-            const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`ans_btn_${nextQ.id}`).setLabel('✍️ Answer').setStyle(ButtonStyle.Primary));
-            await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
+    //     const nextQ = await getNextQuestion(interaction.user.id, q.setId);
+    //     if (nextQ) {
+    //         const embed = new EmbedBuilder().setColor(0x0099FF).setTitle(`📝 ข้อที่ ${nextQ.order}`).setDescription(`**${nextQ.question}**`).setFooter({ text: 'บันทึกแล้ว! ลุยข้อต่อไป' });
+    //         const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`ans_btn_${nextQ.id}`).setLabel('✍️ Answer').setStyle(ButtonStyle.Primary));
+    //         await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
+    //     } else {
+    //         await interaction.reply({ content: '🎉 **ส่งคำตอบครบแล้ว!** รอประกาศผลนะครับ', ephemeral: true });
+    //     }
+    // }
+});
+
+// --- HELPER: Send Next Question OR Summary ---
+async function sendNextBingoQuestion(interaction, setId, order, isFollowUp = false) {
+    const userId = interaction.user.id;
+    const session = bingoSessions.get(`${userId}_${setId}`);
+
+    // หาคำถามข้อถัดไปตาม order
+    const nextQ = await prisma.quizQuestion.findFirst({
+        where: { setId, order: order },
+    });
+
+    // ถ้ามีคำถามต่อไป -> แสดงปุ่ม Yes/No
+    if (nextQ) {
+        const totalQ = await prisma.quizQuestion.count({ where: { setId } });
+        const embed = new EmbedBuilder()
+            .setColor(0x3498DB)
+            .setTitle(`📝 คำถามข้อที่ ${nextQ.order} / ${totalQ}`)
+            .setDescription(`**${nextQ.question}**`)
+            .setFooter({ text: 'เลือกคำตอบของคุณ (Yes หรือ No)' });
+
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId(`bingo_yes_${nextQ.id}_${setId}`).setLabel('✅ YES').setStyle(ButtonStyle.Success),
+            new ButtonBuilder().setCustomId(`bingo_no_${nextQ.id}_${setId}`).setLabel('❌ NO').setStyle(ButtonStyle.Danger)
+        );
+
+        const payload = { embeds: [embed], components: [row], ephemeral: true };
+        if (interaction.replied || interaction.deferred) {
+            isFollowUp ? await interaction.followUp(payload) : await interaction.editReply(payload);
         } else {
-            await interaction.reply({ content: '🎉 **ส่งคำตอบครบแล้ว!** รอประกาศผลนะครับ', ephemeral: true });
+            await interaction.reply(payload);
         }
     }
-});
+    // ถ้าไม่มีคำถามแล้ว -> แสดงหน้าสรุป (Summary Embed)
+    else {
+        const bingoGrid = generateBingoGrid(session.answers);
+        const summaryEmbed = new EmbedBuilder()
+            .setColor(0xF1C40F)
+            .setTitle('🧐 สรุปใบทำนายของคุณ')
+            .setDescription(`กรุณาตรวจสอบความถูกต้องก่อนยืนยัน\n\n${bingoGrid}`)
+            .setFooter({ text: 'กด Confirm เพื่อส่ง หรือ Edit เพื่อแก้ไขใหม่ตั้งแต่ต้น' });
+
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId(`bingo_confirm_${setId}`).setLabel('✅ Confirm Submission').setStyle(ButtonStyle.Primary),
+            new ButtonBuilder().setCustomId(`bingo_edit_${setId}`).setLabel('↩️ Edit (Start Over)').setStyle(ButtonStyle.Secondary)
+        );
+
+        await interaction.editReply({ embeds: [summaryEmbed], components: [row], ephemeral: true });
+    }
+}
 
 async function getNextQuestion(userId, setId) {
     const questions = await prisma.quizQuestion.findMany({ where: { setId, isActive: true }, orderBy: { order: 'asc' } });
     const answered = await prisma.userAnswer.findMany({ where: { userId, question: { setId } }, select: { questionId: true } });
     const answeredIds = new Set(answered.map(a => a.questionId));
     return questions.find(q => !answeredIds.has(q.id));
+}
+
+// แก้ไข function sendLog เล็กน้อยให้รองรับการส่ง Embed โดยตรง
+async function sendLog(title, description, color = 0x0099FF, channelId = LOG_CHANNEL_ID, customEmbed = null) {
+    if (!channelId) return;
+    try {
+        const channel = await client.channels.fetch(channelId);
+        if (channel) {
+            const embed = customEmbed || new EmbedBuilder().setTitle(title).setDescription(description).setColor(color).setTimestamp();
+            await channel.send({ embeds: [embed] });
+        }
+    } catch (e) { console.error(`Log Error (${channelId}):`, e.message); }
 }
 
 client.login(TOKEN);
