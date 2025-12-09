@@ -168,7 +168,7 @@ app.get('/api/quiz-sets', requireAuth, async (req, res) => {
     res.json(sets);
 });
 
-// ✅ Create Set (แก้ให้รับ completionRoleId ชัดเจน)
+// ✅ แก้ API นี้ให้สร้าง 9 ข้ออัตโนมัติถ้าเป็น BINGO
 app.post('/api/quiz-sets', requireAuth, async (req, res) => {
     const { title, description, completionRoleId, type } = req.body;
     try {
@@ -176,11 +176,29 @@ app.post('/api/quiz-sets', requireAuth, async (req, res) => {
             data: {
                 title,
                 description,
-                completionRoleId: completionRoleId || null, // แปลงว่างเป็น null
+                completionRoleId: completionRoleId || null,
                 type: type || 'BINGO'
             }
         });
-        sendLog('📚 Set Created', `**${title}** (Role: ${completionRoleId || 'None'})`, 0x57F287);
+
+        // ✨ [NEW LOGIC] ถ้าเป็น Bingo ให้สร้าง 9 ข้อทันที
+        if (newSet.type === 'BINGO') {
+            const questions = [];
+            for (let i = 1; i <= 9; i++) {
+                questions.push({
+                    setId: newSet.id,
+                    order: i,
+                    question: `Question ${i}`, // ข้อความ default
+                    answers: JSON.stringify(['Yes']), // default Yes
+                    rewardPoints: 100,
+                    isActive: true
+                });
+            }
+            // ใช้ createMany เพื่อความเร็ว
+            await prisma.quizQuestion.createMany({ data: questions });
+        }
+
+        sendLog('📚 Set Created', `**${title}** (${type})\nRole: ${completionRoleId || 'None'}`, 0x57F287);
         res.json(newSet);
     } catch (e) {
         console.error(e);
@@ -189,14 +207,31 @@ app.post('/api/quiz-sets', requireAuth, async (req, res) => {
 });
 
 app.put('/api/quiz-sets/:id', requireAuth, async (req, res) => {
+    const { id } = req.params;
     const { title, description, status, completionRoleId } = req.body;
+
     try {
+        // ✅ [NEW] Validation Check
+        if (status === 'OPEN') {
+            const checkSet = await prisma.quizSet.findUnique({
+                where: { id: parseInt(id) },
+                include: { questions: true }
+            });
+
+            if (checkSet.type === 'BINGO' && checkSet.questions.length !== 9) {
+                return res.status(400).json({ error: `Bingo requires exactly 9 questions (current: ${checkSet.questions.length})` });
+            }
+        }
+
         const updated = await prisma.quizSet.update({
-            where: { id: parseInt(req.params.id) },
+            where: { id: parseInt(id) },
             data: { title, description, status, completionRoleId }
         });
         res.json(updated);
-    } catch (e) { res.status(500).json({ error: "Update failed" }); }
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ error: "Update failed" });
+    }
 });
 
 app.delete('/api/quiz-sets/:id', requireAuth, async (req, res) => {

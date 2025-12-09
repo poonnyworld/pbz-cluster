@@ -344,38 +344,48 @@
             const r = await fetch('/api/quiz-sets'); if (r.ok) { allSets = await r.json(); renderSets(); }
         }
 
-        // ✅ แก้ไข function นี้: เปลี่ยน Input เป็น Select
         function renderSets() {
             const c = document.getElementById('quizSetsContainer'); c.innerHTML = '';
             allSets.forEach(s => {
+                // เช็คว่าเป็น Bingo หรือไม่
+                const isBingo = s.type === 'BINGO';
                 const qs = s.questions.sort((a, b) => a.order - b.order);
+
                 const qHtml = qs.map(q => {
                     let ans = ''; try { ans = JSON.parse(q.answers).join(', '); } catch (e) { ans = q.answers }
+
+                    // ✅ ซ่อนปุ่มลบ ถ้าเป็น Bingo
+                    const delBtn = isBingo ? '' : `<button class="btn-icon" onclick="delQ(${q.id})">🗑️</button>`;
+
                     return `<div style="background:rgba(0,0,0,0.3);padding:10px;margin:5px 0;display:flex;justify-content:space-between;align-items:center;">
                         <div style="flex:1;"><b>#${q.order}</b> ${q.question}<br><small style="color:#aaa">Ans: ${ans} | ${q.rewardPoints}pts</small></div>
-                        <div><button class="btn-icon" onclick="openEditQ(${q.id},${s.id})">✏️</button><button class="btn-icon" onclick="delQ(${q.id})">🗑️</button></div>
+                        <div><button class="btn-icon" onclick="openEditQ(${q.id},${s.id})">✏️</button>${delBtn}</div>
                     </div>`;
                 }).join('');
 
-                // --- ส่วน Add Question แถวนี้แหละที่แก้ ---
-                c.innerHTML += `
-                <div style="background:rgba(255,255,255,0.05);padding:15px;margin-bottom:15px;border-radius:4px;">
-                    <div style="display:flex;justify-content:space-between;border-bottom:1px solid #444;padding-bottom:10px;margin-bottom:10px;">
-                        <div><h3 style="margin:0;display:inline;">${s.title}</h3><span class="status-badge status-${s.status}">${s.status}</span><span style="background:${s.type === 'BINGO' ? '#9b59b6' : '#34495e'};padding:2px 6px;border-radius:3px;font-size:0.75em;margin-left:5px;">${s.type}</span><div style="color:#888;font-size:0.9em;">${s.description || ''}</div></div>
-                        <div><button class="btn-icon" onclick="openEditSet(${s.id})">📝</button><button class="btn-icon" onclick="delSet(${s.id})">🗑️</button></div>
-                    </div>
+                // ✅ ซ่อนฟอร์มเพิ่มคำถาม ถ้าเป็น Bingo
+                let addFormHtml = '';
+                if (!isBingo) {
+                    addFormHtml = `
                     <div style="background:rgba(0,0,0,0.2);padding:10px;border-radius:4px;display:flex;gap:5px;">
                         <input id="q_o_${s.id}" type="number" placeholder="#" value="${qs.length + 1}" style="width:50px;margin:0;">
                         <input id="q_t_${s.id}" placeholder="New Question" style="flex:2;margin:0;">
-                        
                         <select id="q_a_${s.id}" style="flex:1;margin:0;padding:10px;background:#222;border:1px solid #444;color:white;">
                             <option value="Yes">Yes</option>
                             <option value="No">No</option>
                         </select>
-
                         <input id="q_r_${s.id}" type="number" value="100" style="width:60px;margin:0;">
                         <button class="btn-add" style="width:auto;padding:0 15px;" onclick="addQ(${s.id})">+</button>
+                    </div>`;
+                }
+
+                c.innerHTML += `
+                <div style="background:rgba(255,255,255,0.05);padding:15px;margin-bottom:15px;border-radius:4px;">
+                    <div style="display:flex;justify-content:space-between;border-bottom:1px solid #444;padding-bottom:10px;margin-bottom:10px;">
+                        <div><h3 style="margin:0;display:inline;">${s.title}</h3><span class="status-badge status-${s.status}">${s.status}</span><span style="background:${isBingo ? '#9b59b6' : '#34495e'};padding:2px 6px;border-radius:3px;font-size:0.75em;margin-left:5px;">${s.type}</span><div style="color:#888;font-size:0.9em;">${s.description || ''}</div></div>
+                        <div><button class="btn-icon" onclick="openEditSet(${s.id})">📝</button><button class="btn-icon" onclick="delSet(${s.id})">🗑️</button></div>
                     </div>
+                    ${addFormHtml}
                     <div style="margin-top:10px;">${qHtml}</div>
                 </div>`;
             });
